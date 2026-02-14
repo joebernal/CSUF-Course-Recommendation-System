@@ -57,10 +57,80 @@
 
     <!-- Main Content -->
     <main class="container">
+        <div class="row mt-5">
+            <div class="col-md-8 offset-md-2">
+                <h2 class="mb-4">Request a New Plan</h2>
+                
+                <form>
+                    <!-- Major Selection -->
+                    <div class="mb-4">
+                        <label for="majorSelect" class="form-label">Major</label>
+                        <select class="form-select" id="majorSelect" required>
+                            <option selected>Select a major</option>
+                            <option value="cs">Computer Science</option>
+                        </select>
+                    </div>
 
+                    <!-- Full Time / Part Time -->
+                    <div class="mb-4">
+                        <label class="form-label">Enrollment Status</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="enrollmentStatus" id="fullTime" value="fulltime" checked>
+                            <label class="form-check-label" for="fullTime">
+                                Full Time
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="enrollmentStatus" id="partTime" value="parttime">
+                            <label class="form-check-label" for="partTime">
+                                Part Time
+                            </label>
+                        </div>
+                    </div>
 
+                    <!-- Catalog Year -->
+                    <div class="mb-4">
+                        <label for="catalogYear" class="form-label">Catalog Year</label>
+                        <select class="form-select" id="catalogYear" required>
+                            <option selected>Spring 2022</option>
+                        </select>
+                    </div>
 
+                    <!-- Start Semester -->
+                    <div class="mb-4">
+                        <label class="form-label">Start Semester</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="startSeason" class="form-label">Season</label>
+                                <select class="form-select" id="startSeason" required>
+                                    <option selected>Select season</option>
+                                    <option value="spring">Spring</option>
+                                    <option value="fall">Fall</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="startYear" class="form-label">Year</label>
+                                <select class="form-select" id="startYear" required>
+                                    <option selected>Select year</option>
+                                    <option value="2022">2022</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2026">2026</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary btn-lg" type="submit">Generate Plan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </main>
+    <br>
     <!-- FOOTER -->
     <footer class="container">
         <p>&copy; 2026 CPSC 491 - Project &middot; <a href="#">Terms</a> &middot; <a href="#">About</a></p>
