@@ -58,10 +58,21 @@
         <form action="plans.html">
             <!-- <img class="mb-4" src="../assets/images/logo.png" alt="" width="72" height="57"> -->
 
-            <h1 class="h3 mb-3 fw-normal">Please sign in with Google</h1>
+            <h1 class="h3 mb-3 fw-normal">Please sign in</h1>
 
+            <div class="form-floating">
+                <input type="email" class="form-control" id="floatingInput" placeholder="name@example.com">
+                <label for="floatingInput">Email address</label>
+            </div>
+            <div class="form-floating">
+                <input type="password" class="form-control" id="floatingPassword" placeholder="Password">
+                <label for="floatingPassword">Password</label>
+            </div>
+            <button id="local-login-btn" class="w-100 btn btn-lg btn-primary mb-3" type="button">
+                Sign in
+            </button>
             <button id="google-login-btn" class="w-100 btn btn-lg btn-primary" type="button">
-            Sign in with Google
+                <i class="bi bi-google"></i> Sign in with Google
             </button>
             <!-- TODO: Add Google sign-in functionality -->
         </form>
