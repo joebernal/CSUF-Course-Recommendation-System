@@ -25,11 +25,14 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
             const user = result.user;
 
             // Save user info to localStorage
-            localStorage.setItem("user", JSON.stringify({
-              email: user.email,
-              google_uid: user.uid,
-              full_name: user.displayName,
-            }));
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                email: user.email,
+                google_uid: user.uid,
+                full_name: user.displayName,
+              }),
+            );
 
             // Send data to backend
             fetch("http://127.0.0.1:5001/api/users/", {
@@ -52,7 +55,7 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
               });
 
             alert("Welcome " + user.displayName);
-            window.location.href = "/web/dashboard.html";
+            window.location.href = "/frontend/dashboard.html";
           })
           .catch((error) => {
             console.error("Error during login:", error);
@@ -67,7 +70,7 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
         signOut(auth)
           .then(() => {
             alert("Signed out");
-            window.location.href = "/web/index.html";
+            window.location.href = "/frontend/index.html";
           })
           .catch((error) => {
             console.error("Error during sign-out:", error);
