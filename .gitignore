@@ -7,3 +7,14 @@ backend/venv/
 # Python cache
 __pycache__/
 *.pyc
+
+# macOS
+.DS_Store
+
+# Python virtual env
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
