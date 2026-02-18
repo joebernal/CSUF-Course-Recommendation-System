@@ -20,5 +20,9 @@ app.register_blueprint(plan_bp, url_prefix='/api/plans')
 app.register_blueprint(user_bp, url_prefix='/api/users')
 app.register_blueprint(major_bp, url_prefix='/api/majors')
 
+print("\nRegistered Routes:")
+for rule in app.url_map.iter_rules():
+    print(rule)
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5001, debug=True)
