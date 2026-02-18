@@ -9,10 +9,9 @@ from routes.major_routes import major_bp
 
 app = Flask(__name__)
 
-CORS(app, origins=[
-    "http://127.0.0.1:5501",
-    "http://127.0.0.1:5002"
-], supports_credentials=True)
+from flask_cors import CORS
+
+CORS(app, origins=["http://127.0.0.1:5500"], supports_credentials=True)
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(course_bp, url_prefix='/api/courses')
