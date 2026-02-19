@@ -4,6 +4,8 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
 
 // Fetch Firebase config from Flask API
@@ -18,6 +20,7 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
 
     // Google Login Button
     const googleLogin = document.getElementById("google-login-btn");
+    const emailLogin = document.getElementById("email-login-btn");
     if (googleLogin) {
       googleLogin.addEventListener("click", function () {
         signInWithPopup(auth, provider)
@@ -62,6 +65,24 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
           });
       });
     }
+    if (emailLogin) {
+      emailLogin.addEventListener("click", function () {
+        const email = document.getElementById("emailInput").value;
+        const password = document.getElementById("passwordInput").value;
+
+        signInWithEmailAndPassword(auth, email, password)
+          .then((userCredential) => {
+            const user = userCredential.user;
+            alert("Welcome " + user.email);
+            window.location.href = "/frontend/dashboard.html";
+          })
+          .catch((error) => {
+            console.error("Error during email/password login:", error);
+            alert("Login failed: " + error.message);
+          });
+      });
+    }
+
 
     // Google Sign-out Button
     const googleSignout = document.getElementById("google-signout-btn");
