@@ -37,26 +37,8 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
               }),
             );
 
-            // Send data to backend
-            fetch("http://127.0.0.1:5001/api/users/", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                email: user.email,
-                google_uid: user.uid,
-                full_name: user.displayName,
-              }),
-            })
-              .then((response) => response.json())
-              .then((data) => {
-                console.log("User added to backend:", data);
-              })
-              .catch((error) => {
-                console.error("Error adding user to backend:", error);
-              });
 
+            addUserToDatabase(user.email, user.uid, user.displayName);
             alert("Welcome " + user.displayName);
             window.location.href = "/frontend/dashboard.html";
           })
@@ -73,6 +55,7 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
         signInWithEmailAndPassword(auth, email, password)
           .then((userCredential) => {
             const user = userCredential.user;
+            addUserToDatabase(user.email, user.uid, user.displayName);
             alert("Welcome " + user.email);
             window.location.href = "/frontend/dashboard.html";
           })
@@ -100,3 +83,25 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
     }
   })
   .catch((error) => console.error("Failed to fetch Firebase config:", error));
+
+function addUserToDatabase(email, uid, displayName) {
+  // Send data to backend
+  fetch("http://127.0.0.1:5001/api/users/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: email,
+      google_uid: uid,
+      full_name: displayName,
+    }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      console.log("User added to backend:", data);
+    })
+    .catch((error) => {
+      console.error("Error adding user to backend:", error);
+    });
+}
