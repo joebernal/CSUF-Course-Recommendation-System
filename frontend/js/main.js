@@ -21,6 +21,8 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
     // Google Login Button
     const googleLogin = document.getElementById("google-login-btn");
     const emailLogin = document.getElementById("email-login-btn");
+    const emailRegister = document.getElementById("email-register-btn");
+
     if (googleLogin) {
       googleLogin.addEventListener("click", function () {
         signInWithPopup(auth, provider)
@@ -55,13 +57,50 @@ fetch("http://127.0.0.1:5001/api/auth/firebase-config")
         signInWithEmailAndPassword(auth, email, password)
           .then((userCredential) => {
             const user = userCredential.user;
-            addUserToDatabase(user.email, user.uid, user.displayName);
-            alert("Welcome " + user.email);
+            // addUserToDatabase(user.email, user.uid, user.displayName);
             window.location.href = "/frontend/dashboard.html";
+            // Save user info to localStorage
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                email: user.email,
+                google_uid: user.uid,
+                full_name: user.displayName,
+              }),
+            );
           })
           .catch((error) => {
             console.error("Error during email/password login:", error);
             alert("Login failed: " + error.message);
+          });
+      });
+    }
+
+    if (emailRegister) {
+      emailRegister.addEventListener("click", function () {
+        const email = document.getElementById("emailInput").value;
+        const password = document.getElementById("passwordInput").value;
+        const passwordConf = document.getElementById("passwordConfInput").value;
+        // add validation for password and password confirmation
+
+        createUserWithEmailAndPassword(auth, email, password)
+          .then((userCredential) => {
+            const user = userCredential.user;
+            addUserToDatabase(user.email, user.uid, user.displayName);
+            window.location.href = "/frontend/dashboard.html";
+            // Save user info to localStorage
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                email: user.email,
+                google_uid: user.uid,
+                full_name: user.displayName,
+              }),
+            );
+          })
+          .catch((error) => {
+            console.error("Error during email/password registration:", error);
+            alert("Registration failed: " + error.message);
           });
       });
     }
