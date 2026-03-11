@@ -3,7 +3,7 @@ from routes.db_operations import query_db
 
 user_bp = Blueprint("user_bp", __name__)
 
-@user_bp.route('/', methods=['POST'])
+@user_bp.route('/', methods=['POST', 'OPTIONS'])
 def add_user():
     data = request.get_json()
 
