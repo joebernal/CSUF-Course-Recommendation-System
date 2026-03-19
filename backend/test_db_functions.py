@@ -3,6 +3,8 @@ import random
 import mysql.connector
 from dotenv import load_dotenv
 from routes.db_operations import query_db, DB_CONFIG
+from create_plan import add_random_ge_course_to_plan
+from create_plan import add_completed_course
 
 load_dotenv()
 
@@ -45,15 +47,12 @@ def test_get_completed_courses():
         print(row)
 
 
-def test_add_completed_course():
+def test_random_ge():
 
-    add_completed_course(1, 5, "Spring", 2026, "A")
+    result = add_random_ge_course_to_plan(1, 6, "Fall", 2026)
 
-    results = get_completed_courses(1)
-
-    print("\nAfter Insert:")
-    for row in results:
-        print(row)
+    print("\nRandom GE Result:")
+    print(result)
 
 
 # ----------------------------
@@ -62,4 +61,4 @@ def test_add_completed_course():
 
 if __name__ == "__main__":
     test_get_completed_courses()
-    test_add_completed_course()
+    test_random_ge()
