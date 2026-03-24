@@ -23,17 +23,6 @@ def get_completed_courses(user_id):
 
     return query_db(query, (user_id,))
 
-
-def add_completed_course(user_id, course_id, term, year, grade):
-
-    query = """
-    INSERT INTO completed_courses (user_id, course_id, term, year, grade)
-    VALUES (%s, %s, %s, %s, %s)
-    """
-
-    query_db(query, (user_id, course_id, term, year, grade))
-
-
 # ----------------------------
 # TEST FUNCTIONS
 # ----------------------------
@@ -49,7 +38,7 @@ def test_get_completed_courses():
 
 def test_random_ge():
 
-    result = add_random_ge_course_to_plan(1, 6, "Fall", 2026)
+    result = add_random_ge_course_to_plan(1, 1, "Fall", 2026)
 
     print("\nRandom GE Result:")
     print(result)
