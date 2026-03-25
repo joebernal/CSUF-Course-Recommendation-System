@@ -40,8 +40,8 @@ export function loadOnboardingPreferences(): OnboardingPreferences | null {
     ) {
       return {
         enrollmentLoad: parsed.enrollmentLoad,
-        takeWinterCourses: parsed.takeWinterCourses,
-        takeSummerCourses: parsed.takeSummerCourses,
+        takeWinterCourses: false,
+        takeSummerCourses: false,
         preferredLanguage:
           typeof parsed.preferredLanguage === "string" ? parsed.preferredLanguage : "Python",
         careerInterest:

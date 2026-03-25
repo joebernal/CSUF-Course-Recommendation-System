@@ -7,6 +7,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { FormEvent, useEffect, useState } from "react";
 
 export default function ProfileForm() {
+  const [uid, setUid] = useState("");
   const [name, setName] = useState("");
   const [preferredLanguage, setPreferredLanguage] = useState("Python");
   const [careerInterest, setCareerInterest] = useState("Undecided");
@@ -15,18 +16,22 @@ export default function ProfileForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const displayName = user?.displayName?.trim();
-      const emailPrefix = user?.email?.split("@")[0]?.trim();
-      setName(displayName || emailPrefix || "");
+      if (user) {
+        setUid(user.uid);
+        const displayName = user?.displayName?.trim();
+        const emailPrefix = user?.email?.split("@")[0]?.trim();
+        setName(displayName || emailPrefix || "");
+      }
     });
 
     return () => unsubscribe();
   }, []);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage("");
     setIsError(false);
@@ -57,7 +62,43 @@ export default function ProfileForm() {
       }
     }
 
-    setMessage("Profile changes are valid. Save API is not connected yet.");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/users/updateProfile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          google_uid: uid,
+          enrollmentStatus: null, // Not updated from profile form
+          preferredTerms: { winter: false, summer: false }, // Not updated from profile form
+          preferredLanguage,
+          careerInterest,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setIsError(true);
+        setMessage(data.error || "Failed to update profile.");
+      } else {
+        setIsError(false);
+        setMessage("Profile updated successfully!");
+        // Reset password fields after successful update
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch (error) {
+      setIsError(true);
+      setMessage("An error occurred while updating your profile.");
+      console.error("Profile update error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -82,9 +123,10 @@ export default function ProfileForm() {
 
       <button
         type="submit"
-        className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+        disabled={isLoading}
+        className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
       >
-        Save Changes
+        {isLoading ? "Saving..." : "Save Changes"}
       </button>
 
       {message ? (

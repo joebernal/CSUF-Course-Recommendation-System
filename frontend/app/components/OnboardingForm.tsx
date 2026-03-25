@@ -6,11 +6,14 @@ import {
   loadOnboardingPreferences,
   saveOnboardingPreferences,
 } from "@/lib/onboarding/preferences";
+import { auth } from "@/lib/firebase/client";
+import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 export default function OnboardingForm() {
   const router = useRouter();
+  const [uid, setUid] = useState("");
   const [enrollmentLoad, setEnrollmentLoad] = useState<EnrollmentLoad | null>(null);
   const [takeWinterCourses, setTakeWinterCourses] = useState(false);
   const [takeSummerCourses, setTakeSummerCourses] = useState(false);
@@ -34,7 +37,17 @@ export default function OnboardingForm() {
     setCareerInterest(existingPreferences.careerInterest);
   }, []);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUid(user.uid);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!enrollmentLoad) {
@@ -44,7 +57,10 @@ export default function OnboardingForm() {
     }
 
     setIsLoading(true);
+    setMessage("");
+    setIsError(false);
 
+    // Save preferences to localStorage
     saveOnboardingPreferences({
       enrollmentLoad,
       takeWinterCourses,
@@ -54,9 +70,42 @@ export default function OnboardingForm() {
       completedAt: new Date().toISOString(),
     });
 
-    setIsError(false);
-    setMessage("Preferences saved. Redirecting to dashboard...");
-    router.push("/dashboard");
+    // Call API to update profile
+    try {
+      const response = await fetch("/api/users/updateProfile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          google_uid: uid,
+          enrollmentStatus: enrollmentLoad,
+          preferredTerms: {
+            winter: takeWinterCourses,
+            summer: takeSummerCourses,
+          },
+          preferredLanguage,
+          careerInterest,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setIsError(true);
+        setMessage(data.error || "Failed to save preferences.");
+        setIsLoading(false);
+      } else {
+        setIsError(false);
+        setMessage("Preferences saved. Redirecting to dashboard...");
+        router.push("/dashboard");
+      }
+    } catch (error) {
+      setIsError(true);
+      setMessage("An error occurred while saving preferences.");
+      console.error("Onboarding update error:", error);
+      setIsLoading(false);
+    }
   };
 
   return (
