@@ -112,4 +112,3 @@ for req in requirements:
             print(
                 f"  Course: {course.get('course_code')} - {course.get('course_name')} ({course.get('units_max')} units)"
             )
-            print(f"Requirement(s): {course.get('choice_group')}")
