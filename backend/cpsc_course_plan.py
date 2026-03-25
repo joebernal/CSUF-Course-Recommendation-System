@@ -105,9 +105,11 @@ print(get_catalog(catalog_id).get("catalog_name"))
 requirements = get_major_requirements(major_id, catalog_id)
 print("Major Requirements:")
 for req in requirements:
-    print(f"Requirement: {req.get('requirement_name')}")
-    courses = get_courses_for_requirement(req.get("id"))
-    for course in courses:
-        print(
-            f"  Course: {course.get('course_code')} - {course.get('course_name')} ({course.get('units_max')} units)"
-        )
+    if req.get("requirement_type") == "core":
+        print(f"Requirement: {req.get('requirement_name')}")
+        courses = get_courses_for_requirement(req.get("id"))
+        for course in courses:
+            print(
+                f"  Course: {course.get('course_code')} - {course.get('course_name')} ({course.get('units_max')} units)"
+            )
+            print(f"Requirement(s): {course.get('choice_group')}")
