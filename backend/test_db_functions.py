@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 from routes.db_operations import query_db, DB_CONFIG
 from create_plan import add_random_ge_course_to_plan
 from create_plan import add_completed_course
+from create_plan import add_math_and_science_requirements
+from create_plan import check_prerequisites
 
 load_dotenv()
-
 
 # ----------------------------
 # ACTUAL FUNCTIONS
@@ -38,9 +39,24 @@ def test_get_completed_courses():
 
 def test_random_ge():
 
-    result = add_random_ge_course_to_plan(1, 1, "Fall", 2026)
+    result = add_random_ge_course_to_plan(3, 1, "Fall", 2026)
 
     print("\nRandom GE Result:")
+    print(result)
+
+
+def test_math_and_science():
+
+    print("\n--- Testing Math + Science Requirements ---")
+
+    result = add_math_and_science_requirements(
+        plan_id=3,
+        user_id=1,
+        term="Fall",
+        year=2026
+    )
+    
+    print("\nResult:")
     print(result)
 
 
@@ -50,4 +66,5 @@ def test_random_ge():
 
 if __name__ == "__main__":
     test_get_completed_courses()
-    test_random_ge()
+    #test_random_ge()
+    test_math_and_science()

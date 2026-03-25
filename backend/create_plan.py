@@ -1,10 +1,22 @@
 import random
 from routes.db_operations import query_db
 
-
 # -----------------------------
 # HELPERS
 # -----------------------------
+
+ALLOWED_ELECTIVES = [
+    "BIOL 101", "BIOL 101L",
+    "BIOL 151", "BIOL 152",
+    "CHEM 120A", "CHEM 120B",
+    "CHEM 123", "CHEM 125",
+    "GEOL 101", "GEOL 101L",
+    "GEOL 201", "GEOL 201L",
+    "MATH 250A", "MATH 250B",
+    "PHYS 225", "PHYS 225L",
+    "PHYS 226", "PHYS 226L",
+    "PHYS 227", "PHYS 227L"
+]
 
 def get_ge_units_completed(plan_id, ge_area_code):
 
@@ -24,21 +36,32 @@ def get_paired_course(course_id):
 
     pair = query_db(
         """
-        SELECT paired_course_id AS paired_id
+        SELECT paired_course_id
         FROM course_pairs
         WHERE course_id = %s
-
-        UNION
-
-        SELECT course_id AS paired_id
-        FROM course_pairs
-        WHERE paired_course_id = %s
         """,
-        (course_id, course_id),
+        (course_id,),
         one=True
     )
 
-    return pair["paired_id"] if pair else None
+    if pair:
+        return pair["paired_course_id"]
+
+    reverse = query_db(
+        """
+        SELECT course_id
+        FROM course_pairs
+        WHERE paired_course_id = %s
+        """,
+        (course_id,),
+        one=True
+    )
+
+    if reverse:
+        return reverse["course_id"]
+
+    return None
+
 
 # -----------------------------
 # USER INFORMATION
@@ -218,7 +241,6 @@ def remove_completed_course(user_id, course_id):
 # -----------------------------
 
 def add_course_to_plan(plan_id, course_id, term, year, applied_to=None, note=None):
-
     existing = query_db(
         """
         SELECT id
@@ -349,29 +371,228 @@ def add_random_ge_course_to_plan(plan_id, user_id, term, year):
         "paired_added": bool(paired)
     }
 
+
+def add_math_and_science_requirements(plan_id, user_id, term, year, max_units_per_term=6):
+
+    # Math Courses
+    math_sequence = [
+        "MATH 150A",
+        "MATH 150B",
+        "MATH 250A",
+        "MATH 250B",
+        "MATH 338",
+    ]
+
+    completed = {
+        c["course_id"] for c in query_db(
+            "SELECT course_id FROM completed_courses WHERE user_id = %s",
+            (user_id,)
+        )
+    }
+
+    planned = {
+        c["course_id"] for c in query_db(
+            "SELECT course_id FROM plan_courses WHERE plan_id = %s",
+            (plan_id,)
+        )
+    }
+
+    taken_or_planned = completed.union(planned)
+
+    math_added = None
+
+    for course_code in math_sequence:
+        course = query_db(
+            "SELECT id, course_code FROM courses WHERE course_code = %s",
+            (course_code,),
+            one=True
+        )
+
+        if not course:
+            continue
+
+        if course["id"] in taken_or_planned:
+            continue
+
+        if not check_prerequisites(user_id, course["id"]):
+            continue
+
+        add_course_to_plan(
+            plan_id,
+            course["id"],
+            term,
+            year,
+            applied_to="Math Requirement",
+            note="Sequential math requirement"
+        )
+
+        math_added = course["course_code"]
+        taken_or_planned.add(course["id"])
+        break
+
+    #Math/Science Electives
+
+    elective_courses = query_db(
+        f"""
+        SELECT id, course_code, units_max, has_lab, includes_lab
+        FROM courses
+        WHERE course_code IN ({','.join(['%s'] * len(ALLOWED_ELECTIVES))})
+        """,
+        tuple(ALLOWED_ELECTIVES)
+    )
+    
+    #elective_courses = query_db(
+    #"""
+    #SELECT id, course_code, units_max, has_lab, includes_lab
+    #FROM courses
+    #WHERE course_code = 'BIOL 101'
+    #"""
+    #)
+
+    selected_units = 0
+    electives_added = []
+
+    random.shuffle(elective_courses)
+
+    for course in elective_courses:
+
+        if selected_units >= max_units_per_term:
+            break
+
+        # Only pick lectures first
+        if course["course_code"].endswith("L"):
+            continue
+
+        if course["id"] in taken_or_planned:
+
+            paired_id = get_paired_course(course["id"])
+
+            if paired_id and paired_id not in taken_or_planned:
+
+                print("FIXING MISSING LAB FOR:", course["course_code"])
+
+                lab = query_db(
+                    "SELECT id, course_code, units_max FROM courses WHERE id = %s",
+                    (paired_id,),
+                    one=True
+                )
+
+                if lab:
+                    add_course_to_plan(
+                        plan_id,
+                        lab["id"],
+                        term,
+                        year,
+                        applied_to="Science/Math Elective",
+                        note="Auto-added missing lab"
+                    )
+
+                    taken_or_planned.add(lab["id"])
+                    electives_added.append(lab["course_code"])
+
+            continue
+
+        if not check_prerequisites(user_id, course["id"]):
+            continue
+
+        course_units = float(course["units_max"])
+
+        paired_id = get_paired_course(course["id"])
+        print("PAIR RESULT:", course["course_code"], "->", paired_id)
+
+        if paired_id:
+
+        # non-lab
+            if selected_units + course_units > max_units_per_term:
+                continue
+
+        existing = query_db(
+            """
+            SELECT id FROM plan_courses
+            WHERE plan_id = %s AND course_id = %s AND term = %s AND year = %s
+            """,
+            (plan_id, course["id"], term, year),
+            one=True
+        )
+
+        if existing:
+            continue
+
+        add_course_to_plan(
+            plan_id,
+            course["id"],
+            term,
+            year,
+            applied_to="Science/Math Elective",
+            note="Random elective selection"
+        )
+
+        selected_units += course_units
+        electives_added.append(course["course_code"])
+
+        taken_or_planned.add(course["id"])
+
+    return {
+        "status": "success",
+        "math_added": math_added,
+        "electives_added": electives_added,
+        "elective_units": selected_units
+    }
+
 # -----------------------------
 # PREREQUISITE VALIDATION
 # -----------------------------
 
 def check_prerequisites(user_id, course_id):
 
+    course_info = query_db(
+    "SELECT course_code FROM courses WHERE id = %s",
+    (course_id,),
+    one=True
+    )
+
+    course_code = course_info["course_code"]
+
+    # allow intro courses (100-level)
+    if any(char.isdigit() for char in course_code):
+        number = int(''.join(filter(str.isdigit, course_code)))
+        if number < 200:
+            return True
+
     prereqs = query_db(
         """
-        SELECT cri.required_course_id
-        FROM course_requirements cr
-        JOIN course_requirement_items cri
-            ON cr.id = cri.requirement_id
-        WHERE cr.course_id = %s
+        SELECT item_type, required_course_id
+        FROM course_requirement_items
+        WHERE course_requirement_id IN (
+            SELECT id FROM course_requirements WHERE course_id = %s
+        )
         """,
         (course_id,)
     )
 
-    completed = get_completed_courses(user_id)
+    course_prereqs = [
+        p["required_course_id"]
+        for p in prereqs
+        if p["item_type"] == "course" and p["required_course_id"] is not None
+    ]
 
-    completed_set = {c["course_id"] for c in completed}
+    if not course_prereqs:
+        print("NO REAL PREREQS → ALLOW")
+        return True
 
-    for prereq in prereqs:
-        if prereq["required_course_id"] not in completed_set:
+    completed = {
+        c["course_id"] for c in query_db(
+            "SELECT course_id FROM completed_courses WHERE user_id = %s",
+            (user_id,)
+        )
+    }
+
+    print("COMPLETED:", completed)
+
+    for prereq_id in course_prereqs:
+        if prereq_id not in completed:
+            print("MISSING PREREQ:", prereq_id)
             return False
 
+    print("ALL PREREQS MET")
     return True
