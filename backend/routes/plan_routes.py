@@ -12,6 +12,10 @@ def create_plan():
 @plan_bp.route("/catalogs", methods=["GET"])
 def get_catalogs():
     catalogs = query_db(
-        "SELECT DISTINCT catalog_name FROM catalog_years ORDER BY catalog_year DESC;"
+        """
+        SELECT catalog_name, start_term, start_year
+        FROM catalog_years
+        ORDER BY start_year DESC, catalog_name DESC
+        """
     )
     return jsonify(catalogs), 200

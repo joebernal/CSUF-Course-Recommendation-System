@@ -4,6 +4,8 @@ export type OnboardingPreferences = {
   enrollmentLoad: EnrollmentLoad;
   takeWinterCourses: boolean;
   takeSummerCourses: boolean;
+  preferredLanguage: string;
+  careerInterest: string;
   completedAt: string;
 };
 
@@ -40,6 +42,10 @@ export function loadOnboardingPreferences(): OnboardingPreferences | null {
         enrollmentLoad: parsed.enrollmentLoad,
         takeWinterCourses: parsed.takeWinterCourses,
         takeSummerCourses: parsed.takeSummerCourses,
+        preferredLanguage:
+          typeof parsed.preferredLanguage === "string" ? parsed.preferredLanguage : "Python",
+        careerInterest:
+          typeof parsed.careerInterest === "string" ? parsed.careerInterest : "Undecided",
         completedAt: typeof parsed.completedAt === "string" ? parsed.completedAt : new Date().toISOString(),
       };
     }

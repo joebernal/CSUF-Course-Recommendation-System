@@ -9,6 +9,17 @@ const fallbackMajors = [
   "Computer Engineering",
 ];
 
+type CatalogOption = {
+  catalogName: string;
+  startTerm: string;
+  startYear: number;
+};
+
+const fallbackCatalogs: CatalogOption[] = [
+  { catalogName: "Fall 2026", startTerm: "Fall", startYear: 2026 },
+  { catalogName: "Spring 2026", startTerm: "Spring", startYear: 2026 },
+];
+
 function normalizeMajors(data: unknown): string[] {
   if (!Array.isArray(data)) {
     return [];
@@ -42,6 +53,47 @@ function normalizeMajors(data: unknown): string[] {
   return Array.from(new Set(names));
 }
 
+function normalizeCatalogs(data: unknown): CatalogOption[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  const normalized = data
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      const catalogName = record.catalog_name;
+      const startTerm = record.start_term;
+      const startYear = record.start_year;
+
+      if (
+        typeof catalogName !== "string" ||
+        typeof startTerm !== "string" ||
+        (typeof startYear !== "number" && typeof startYear !== "string")
+      ) {
+        return null;
+      }
+
+      const parsedYear =
+        typeof startYear === "number" ? startYear : Number.parseInt(startYear, 10);
+      if (!Number.isFinite(parsedYear)) {
+        return null;
+      }
+
+      return {
+        catalogName: catalogName.trim(),
+        startTerm: startTerm.trim(),
+        startYear: parsedYear,
+      };
+    })
+    .filter((item): item is CatalogOption => Boolean(item));
+
+  return Array.from(new Map(normalized.map((item) => [item.catalogName, item])).values());
+}
+
 export default function RequestPlanForm() {
   const [major, setMajor] = useState("");
   const [majors, setMajors] = useState<string[]>([]);
@@ -49,6 +101,9 @@ export default function RequestPlanForm() {
   const [majorsLoadError, setMajorsLoadError] = useState("");
   const [enrollmentStatus, setEnrollmentStatus] = useState<"fulltime" | "parttime">("fulltime");
   const [catalogYear, setCatalogYear] = useState("Spring 2022");
+  const [catalogs, setCatalogs] = useState<CatalogOption[]>([]);
+  const [isCatalogsLoading, setIsCatalogsLoading] = useState(true);
+  const [catalogsLoadError, setCatalogsLoadError] = useState("");
   const [startSeason, setStartSeason] = useState("Spring");
   const [startYear, setStartYear] = useState("2026");
   const [onboardingDefaultsMessage, setOnboardingDefaultsMessage] = useState("");
@@ -135,6 +190,61 @@ export default function RequestPlanForm() {
     };
 
     loadMajors();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadCatalogs = async () => {
+      setIsCatalogsLoading(true);
+      setCatalogsLoadError("");
+
+      try {
+        const response = await fetch("/api/plans/catalogs", { method: "GET" });
+        const data = (await response.json()) as unknown;
+
+        if (!response.ok) {
+          throw new Error("Could not load catalogs.");
+        }
+
+        const normalized = normalizeCatalogs(data);
+        if (normalized.length === 0) {
+          throw new Error("No catalogs returned by API.");
+        }
+
+        if (!isCancelled) {
+          setCatalogs(normalized);
+          setCatalogYear((current) => {
+            const selected = normalized.find((item) => item.catalogName === current) ?? normalized[0];
+            setStartSeason(selected.startTerm);
+            setStartYear(String(selected.startYear));
+            return selected.catalogName;
+          });
+        }
+      } catch {
+        if (!isCancelled) {
+          setCatalogs(fallbackCatalogs);
+          setCatalogYear((current) => {
+            const selected =
+              fallbackCatalogs.find((item) => item.catalogName === current) ?? fallbackCatalogs[0];
+            setStartSeason(selected.startTerm);
+            setStartYear(String(selected.startYear));
+            return selected.catalogName;
+          });
+          setCatalogsLoadError("Could not load catalogs from API. Showing fallback list.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsCatalogsLoading(false);
+        }
+      }
+    };
+
+    loadCatalogs();
 
     return () => {
       isCancelled = true;
@@ -260,14 +370,34 @@ export default function RequestPlanForm() {
           id="catalogYear"
           name="catalogYear"
           value={catalogYear}
-          onChange={(event) => setCatalogYear(event.target.value)}
+          onChange={(event) => {
+            const selectedName = event.target.value;
+            setCatalogYear(selectedName);
+            const selected = catalogs.find((item) => item.catalogName === selectedName);
+            if (selected) {
+              setStartSeason(selected.startTerm);
+              setStartYear(String(selected.startYear));
+            }
+          }}
           className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+          disabled={isCatalogsLoading || catalogs.length === 0}
           required
         >
-          
-          <option value="Spring 2026">Spring 2026</option>
-          <option value="Fall 2026">Fall 2026</option>
+          {isCatalogsLoading ? <option value="">Loading catalogs...</option> : null}
+          {!isCatalogsLoading && catalogs.length === 0 ? (
+            <option value="">No catalogs available</option>
+          ) : null}
+          {!isCatalogsLoading
+            ? catalogs.map((catalogOption) => (
+                <option key={catalogOption.catalogName} value={catalogOption.catalogName}>
+                  {catalogOption.catalogName}
+                </option>
+              ))
+            : null}
         </select>
+        {catalogsLoadError ? (
+          <p className="mt-2 text-xs font-medium text-amber-700">{catalogsLoadError}</p>
+        ) : null}
       </div>
 
       <div>

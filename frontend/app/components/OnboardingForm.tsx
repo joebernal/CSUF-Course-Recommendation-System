@@ -1,5 +1,6 @@
 "use client";
 
+import ProfileIdentityFields from "@/app/components/ProfileIdentityFields";
 import {
   type EnrollmentLoad,
   loadOnboardingPreferences,
@@ -13,6 +14,8 @@ export default function OnboardingForm() {
   const [enrollmentLoad, setEnrollmentLoad] = useState<EnrollmentLoad | null>(null);
   const [takeWinterCourses, setTakeWinterCourses] = useState(false);
   const [takeSummerCourses, setTakeSummerCourses] = useState(false);
+  const [preferredLanguage, setPreferredLanguage] = useState("Python");
+  const [careerInterest, setCareerInterest] = useState("Undecided");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +30,8 @@ export default function OnboardingForm() {
     setEnrollmentLoad(existingPreferences.enrollmentLoad);
     setTakeWinterCourses(existingPreferences.takeWinterCourses);
     setTakeSummerCourses(existingPreferences.takeSummerCourses);
+    setPreferredLanguage(existingPreferences.preferredLanguage);
+    setCareerInterest(existingPreferences.careerInterest);
   }, []);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -44,6 +49,8 @@ export default function OnboardingForm() {
       enrollmentLoad,
       takeWinterCourses,
       takeSummerCourses,
+      preferredLanguage,
+      careerInterest,
       completedAt: new Date().toISOString(),
     });
 
@@ -107,6 +114,14 @@ export default function OnboardingForm() {
           I plan to take Summer courses
         </label>
       </fieldset>
+
+      <ProfileIdentityFields
+        includeName={false}
+        preferredLanguage={preferredLanguage}
+        careerInterest={careerInterest}
+        onPreferredLanguageChange={setPreferredLanguage}
+        onCareerInterestChange={setCareerInterest}
+      />
 
       <button
         type="submit"
