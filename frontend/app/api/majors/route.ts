@@ -1,35 +1,33 @@
 import { NextResponse } from "next/server";
 
-const backendBaseUrl =
-  process.env.API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://127.0.0.1:5001";
+const backendBaseUrl = process.env.API_BASE_URL ?? "http://127.0.0.1:5001";
 
 export async function GET() {
-  const upstreamUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/majors/`;
-
   try {
-    const upstreamResponse = await fetch(upstreamUrl, {
+    const upstreamUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/majors/`;
+
+    const response = await fetch(upstreamUrl, {
       method: "GET",
       cache: "no-store",
     });
 
-    const rawText = await upstreamResponse.text();
-    let parsed: unknown = [];
+    const text = await response.text();
+    let data: unknown = [];
 
-    if (rawText.length > 0) {
+    if (text) {
       try {
-        parsed = JSON.parse(rawText);
+        data = JSON.parse(text);
       } catch {
-        parsed = { message: rawText };
+        data = { message: text };
       }
     }
 
-    return NextResponse.json(parsed, { status: upstreamResponse.status });
-  } catch {
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error("Error fetching majors:", error);
     return NextResponse.json(
-      { errors: ["Could not reach majors API server."] },
-      { status: 502 }
+      { error: "Failed to fetch majors." },
+      { status: 500 },
     );
   }
 }

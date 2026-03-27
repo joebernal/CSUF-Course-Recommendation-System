@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const backendBaseUrl =
-  process.env.API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://localhost:5001";
+const backendBaseUrl = process.env.API_BASE_URL ?? "http://127.0.0.1:5001";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,18 +30,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (!response.ok) {
-      return NextResponse.json(
-        data || { error: "Failed to update profile" },
-        { status: response.status }
-      );
+      return NextResponse.json(data || { error: "Failed to update profile" }, {
+        status: response.status,
+      });
     }
 
-    return NextResponse.json(data || { message: "Profile updated successfully" }, { status: 200 });
+    return NextResponse.json(
+      data || { message: "Profile updated successfully" },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Error updating profile:", error);
     return NextResponse.json(
       { error: "Failed to update profile" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

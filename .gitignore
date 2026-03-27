@@ -1,5 +1,6 @@
 # Environment files
 backend/.env
+frontend/.env
 
 # Virtual environment
 backend/venv/
@@ -21,3 +22,5 @@ __pycache__/
 node_modules/
 .env.local
 .next/
+
+frontend/package-lock.json

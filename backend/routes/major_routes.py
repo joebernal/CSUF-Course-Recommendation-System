@@ -3,8 +3,18 @@ from routes.db_operations import query_db
 
 major_bp = Blueprint("major_bp", __name__)
 
-# available majors
 @major_bp.route("/", methods=["GET"])
 def get_majors():
-	majors = query_db("SELECT major_name,major_acronym FROM `majors`;")
-	return jsonify(majors), 200
+    try:
+        majors = query_db(
+            """
+            SELECT id, major_name
+            FROM majors
+            ORDER BY major_name ASC
+            """
+        ) or []
+
+        return jsonify(majors), 200
+    except Exception as e:
+        print("GET MAJORS ERROR:", e)
+        return jsonify({"error": str(e)}), 500

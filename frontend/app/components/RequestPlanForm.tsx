@@ -1,56 +1,78 @@
 "use client";
 
 import { loadOnboardingPreferences } from "@/lib/onboarding/preferences";
+import { auth } from "@/lib/firebase/client";
+import { onAuthStateChanged } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
-const fallbackMajors = [
-  "Computer Science",
-  "Software Engineering",
-  "Computer Engineering",
-];
+type MajorOption = {
+  id: number;
+  majorName: string;
+};
 
 type CatalogOption = {
+  id: number;
   catalogName: string;
   startTerm: string;
   startYear: number;
 };
 
-const fallbackCatalogs: CatalogOption[] = [
-  { catalogName: "Fall 2026", startTerm: "Fall", startYear: 2026 },
-  { catalogName: "Spring 2026", startTerm: "Spring", startYear: 2026 },
+const fallbackMajors: MajorOption[] = [
+  { id: 1, majorName: "Computer Science" },
 ];
 
-function normalizeMajors(data: unknown): string[] {
+const fallbackCatalogs: CatalogOption[] = [
+  { id: 1, catalogName: "Fall 2026", startTerm: "Fall", startYear: 2026 },
+  { id: 2, catalogName: "Spring 2026", startTerm: "Spring", startYear: 2026 },
+];
+
+function normalizeMajors(data: unknown): MajorOption[] {
   if (!Array.isArray(data)) {
     return [];
   }
 
-  const names = data
+  const normalized = data
     .map((item) => {
-      if (typeof item === "string") {
-        return item.trim();
+      if (!item || typeof item !== "object") {
+        return null;
       }
 
-      if (item && typeof item === "object") {
-        const record = item as Record<string, unknown>;
-        const candidate =
-          record.major_name ??
-          record.major ??
-          record.name ??
-          record.title ??
-          record.program ??
-          record.value;
+      const record = item as Record<string, unknown>;
+      const id = record.id;
+      const name =
+        record.major_name ??
+        record.major ??
+        record.name ??
+        record.title ??
+        record.program ??
+        record.value;
 
-        if (typeof candidate === "string") {
-          return candidate.trim();
-        }
+      const parsedId =
+        typeof id === "number"
+          ? id
+          : typeof id === "string"
+            ? Number.parseInt(id, 10)
+            : NaN;
+
+      if (
+        !Number.isFinite(parsedId) ||
+        typeof name !== "string" ||
+        !name.trim()
+      ) {
+        return null;
       }
 
-      return "";
+      return {
+        id: parsedId,
+        majorName: name.trim(),
+      };
     })
-    .filter((name) => name.length > 0);
+    .filter((item): item is MajorOption => Boolean(item));
 
-  return Array.from(new Set(names));
+  return Array.from(
+    new Map(normalized.map((item) => [item.id, item])).values(),
+  );
 }
 
 function normalizeCatalogs(data: unknown): CatalogOption[] {
@@ -65,25 +87,36 @@ function normalizeCatalogs(data: unknown): CatalogOption[] {
       }
 
       const record = item as Record<string, unknown>;
+      const id = record.id;
       const catalogName = record.catalog_name;
       const startTerm = record.start_term;
       const startYear = record.start_year;
 
+      const parsedId =
+        typeof id === "number"
+          ? id
+          : typeof id === "string"
+            ? Number.parseInt(id, 10)
+            : NaN;
+
+      const parsedYear =
+        typeof startYear === "number"
+          ? startYear
+          : typeof startYear === "string"
+            ? Number.parseInt(startYear, 10)
+            : NaN;
+
       if (
+        !Number.isFinite(parsedId) ||
         typeof catalogName !== "string" ||
         typeof startTerm !== "string" ||
-        (typeof startYear !== "number" && typeof startYear !== "string")
+        !Number.isFinite(parsedYear)
       ) {
         return null;
       }
 
-      const parsedYear =
-        typeof startYear === "number" ? startYear : Number.parseInt(startYear, 10);
-      if (!Number.isFinite(parsedYear)) {
-        return null;
-      }
-
       return {
+        id: parsedId,
         catalogName: catalogName.trim(),
         startTerm: startTerm.trim(),
         startYear: parsedYear,
@@ -91,25 +124,46 @@ function normalizeCatalogs(data: unknown): CatalogOption[] {
     })
     .filter((item): item is CatalogOption => Boolean(item));
 
-  return Array.from(new Map(normalized.map((item) => [item.catalogName, item])).values());
+  return Array.from(
+    new Map(normalized.map((item) => [item.id, item])).values(),
+  );
 }
 
 export default function RequestPlanForm() {
-  const [major, setMajor] = useState("");
-  const [majors, setMajors] = useState<string[]>([]);
+  const router = useRouter();
+
+  const [googleUid, setGoogleUid] = useState("");
+
+  const [majorId, setMajorId] = useState("");
+  const [majors, setMajors] = useState<MajorOption[]>([]);
   const [isMajorsLoading, setIsMajorsLoading] = useState(true);
   const [majorsLoadError, setMajorsLoadError] = useState("");
-  const [enrollmentStatus, setEnrollmentStatus] = useState<"fulltime" | "parttime">("fulltime");
-  const [catalogYear, setCatalogYear] = useState("Spring 2022");
+
+  const [enrollmentStatus, setEnrollmentStatus] = useState<
+    "fulltime" | "parttime"
+  >("fulltime");
+
+  const [catalogYearId, setCatalogYearId] = useState("");
   const [catalogs, setCatalogs] = useState<CatalogOption[]>([]);
   const [isCatalogsLoading, setIsCatalogsLoading] = useState(true);
   const [catalogsLoadError, setCatalogsLoadError] = useState("");
+
   const [startSeason, setStartSeason] = useState("Spring");
   const [startYear, setStartYear] = useState("2026");
-  const [onboardingDefaultsMessage, setOnboardingDefaultsMessage] = useState("");
+
+  const [onboardingDefaultsMessage, setOnboardingDefaultsMessage] =
+    useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setGoogleUid(user?.uid ?? "");
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const onboardingPreferences = loadOnboardingPreferences();
@@ -119,17 +173,26 @@ export default function RequestPlanForm() {
     }
 
     setEnrollmentStatus(
-      onboardingPreferences.enrollmentLoad === "full_time" ? "fulltime" : "parttime"
+      onboardingPreferences.enrollmentLoad === "full_time"
+        ? "fulltime"
+        : "parttime",
     );
 
-    if (onboardingPreferences.takeWinterCourses && !onboardingPreferences.takeSummerCourses) {
+    if (
+      onboardingPreferences.takeWinterCourses &&
+      !onboardingPreferences.takeSummerCourses
+    ) {
       setStartSeason("Winter");
-    } else if (onboardingPreferences.takeSummerCourses && !onboardingPreferences.takeWinterCourses) {
+    } else if (
+      onboardingPreferences.takeSummerCourses &&
+      !onboardingPreferences.takeWinterCourses
+    ) {
       setStartSeason("Summer");
     }
 
     const seasonalPreference =
-      onboardingPreferences.takeWinterCourses && onboardingPreferences.takeSummerCourses
+      onboardingPreferences.takeWinterCourses &&
+      onboardingPreferences.takeSummerCourses
         ? "winter and summer"
         : onboardingPreferences.takeWinterCourses
           ? "winter"
@@ -140,11 +203,15 @@ export default function RequestPlanForm() {
     setOnboardingDefaultsMessage(
       seasonalPreference
         ? `Defaults applied from onboarding: ${
-            onboardingPreferences.enrollmentLoad === "full_time" ? "full-time" : "part-time"
+            onboardingPreferences.enrollmentLoad === "full_time"
+              ? "full-time"
+              : "part-time"
           } and ${seasonalPreference} availability.`
         : `Defaults applied from onboarding: ${
-            onboardingPreferences.enrollmentLoad === "full_time" ? "full-time" : "part-time"
-          } enrollment.`
+            onboardingPreferences.enrollmentLoad === "full_time"
+              ? "full-time"
+              : "part-time"
+          } enrollment.`,
     );
   }, []);
 
@@ -174,13 +241,19 @@ export default function RequestPlanForm() {
 
         if (!isCancelled) {
           setMajors(normalized);
-          setMajor((current) => (current && normalized.includes(current) ? current : normalized[0]));
+          setMajorId((current) =>
+            current && normalized.some((item) => String(item.id) === current)
+              ? current
+              : String(normalized[0].id),
+          );
         }
       } catch {
         if (!isCancelled) {
           setMajors(fallbackMajors);
-          setMajor((current) => current || fallbackMajors[0]);
-          setMajorsLoadError("Could not load majors from API. Showing fallback list.");
+          setMajorId((current) => current || String(fallbackMajors[0].id));
+          setMajorsLoadError(
+            "Could not load majors from API. Showing fallback list.",
+          );
         }
       } finally {
         if (!isCancelled) {
@@ -218,24 +291,29 @@ export default function RequestPlanForm() {
 
         if (!isCancelled) {
           setCatalogs(normalized);
-          setCatalogYear((current) => {
-            const selected = normalized.find((item) => item.catalogName === current) ?? normalized[0];
+          setCatalogYearId((current) => {
+            const selected =
+              normalized.find((item) => String(item.id) === current) ??
+              normalized[0];
             setStartSeason(selected.startTerm);
             setStartYear(String(selected.startYear));
-            return selected.catalogName;
+            return String(selected.id);
           });
         }
       } catch {
         if (!isCancelled) {
           setCatalogs(fallbackCatalogs);
-          setCatalogYear((current) => {
+          setCatalogYearId((current) => {
             const selected =
-              fallbackCatalogs.find((item) => item.catalogName === current) ?? fallbackCatalogs[0];
+              fallbackCatalogs.find((item) => String(item.id) === current) ??
+              fallbackCatalogs[0];
             setStartSeason(selected.startTerm);
             setStartYear(String(selected.startYear));
-            return selected.catalogName;
+            return String(selected.id);
           });
-          setCatalogsLoadError("Could not load catalogs from API. Showing fallback list.");
+          setCatalogsLoadError(
+            "Could not load catalogs from API. Showing fallback list.",
+          );
         }
       } finally {
         if (!isCancelled) {
@@ -257,23 +335,45 @@ export default function RequestPlanForm() {
     setSuccessMessage("");
     setErrors([]);
 
-    if (!major) {
-      setErrors(["major is required"]);
+    const newErrors: string[] = [];
+
+    if (!googleUid) {
+      newErrors.push("You must be signed in to generate a plan.");
+    }
+
+    if (!majorId) {
+      newErrors.push("major_id is required");
+    }
+
+    if (!catalogYearId) {
+      newErrors.push("catalog_year_id is required");
+    }
+
+    if (!startSeason) {
+      newErrors.push("starting_term is required");
+    }
+
+    if (!startYear || Number.isNaN(Number.parseInt(startYear, 10))) {
+      newErrors.push("starting_year is required");
+    }
+
+    if (newErrors.length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     setIsLoading(true);
 
     const payload = {
-      major,
-      enrollment: enrollmentStatus,
-      catalog_year: catalogYear,
-      start_semester: startSeason,
-      semester_year: Number.parseInt(startYear, 10),
+      google_uid: googleUid,
+      major_id: Number.parseInt(majorId, 10),
+      catalog_year_id: Number.parseInt(catalogYearId, 10),
+      starting_term: startSeason,
+      starting_year: Number.parseInt(startYear, 10),
     };
 
     try {
-      const response = await fetch("/api/plans", {
+      const response = await fetch("/api/plans/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -283,17 +383,32 @@ export default function RequestPlanForm() {
 
       const data = (await response.json()) as {
         message?: string;
+        error?: string;
         errors?: string[];
+        plan_id?: number;
       };
 
       if (!response.ok) {
-        setErrors(data.errors && data.errors.length > 0 ? data.errors : ["Request failed"]);
+        setErrors(
+          data.errors && data.errors.length > 0
+            ? data.errors
+            : [data.error ?? "Request failed"],
+        );
         return;
       }
 
-      setSuccessMessage(data.message ?? "Plan request submitted successfully.");
+      setSuccessMessage(data.message ?? "Plan generated successfully.");
+
+      if (data.plan_id) {
+        router.push(`/plan/${data.plan_id}`);
+        return;
+      }
+
+      router.push("/plan");
     } catch {
-      setErrors(["Could not submit request. Please check your API server and try again."]);
+      setErrors([
+        "Could not submit request. Please check your API server and try again.",
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -302,14 +417,17 @@ export default function RequestPlanForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
       <div>
-        <label htmlFor="majorSelect" className="mb-2 block text-sm font-medium text-slate-700">
+        <label
+          htmlFor="majorSelect"
+          className="mb-2 block text-sm font-medium text-slate-700"
+        >
           Major
         </label>
         <select
           id="majorSelect"
           name="major"
-          value={major}
-          onChange={(event) => setMajor(event.target.value)}
+          value={majorId}
+          onChange={(event) => setMajorId(event.target.value)}
           className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
           disabled={isMajorsLoading || majors.length === 0}
           required
@@ -320,19 +438,23 @@ export default function RequestPlanForm() {
           ) : null}
           {!isMajorsLoading
             ? majors.map((majorOption) => (
-                <option key={majorOption} value={majorOption}>
-                  {majorOption}
+                <option key={majorOption.id} value={majorOption.id}>
+                  {majorOption.majorName}
                 </option>
               ))
             : null}
         </select>
         {majorsLoadError ? (
-          <p className="mt-2 text-xs font-medium text-amber-700">{majorsLoadError}</p>
+          <p className="mt-2 text-xs font-medium text-amber-700">
+            {majorsLoadError}
+          </p>
         ) : null}
       </div>
 
       <fieldset>
-        <legend className="mb-2 block text-sm font-medium text-slate-700">Enrollment Status</legend>
+        <legend className="mb-2 block text-sm font-medium text-slate-700">
+          Enrollment Status
+        </legend>
         <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <label className="flex items-center gap-3 text-sm text-slate-700">
             <input
@@ -358,22 +480,29 @@ export default function RequestPlanForm() {
           </label>
         </div>
         {onboardingDefaultsMessage ? (
-          <p className="mt-2 text-xs font-medium text-cyan-700">{onboardingDefaultsMessage}</p>
+          <p className="mt-2 text-xs font-medium text-cyan-700">
+            {onboardingDefaultsMessage}
+          </p>
         ) : null}
       </fieldset>
 
       <div>
-        <label htmlFor="catalogYear" className="mb-2 block text-sm font-medium text-slate-700">
+        <label
+          htmlFor="catalogYear"
+          className="mb-2 block text-sm font-medium text-slate-700"
+        >
           Catalog Year
         </label>
         <select
           id="catalogYear"
           name="catalogYear"
-          value={catalogYear}
+          value={catalogYearId}
           onChange={(event) => {
-            const selectedName = event.target.value;
-            setCatalogYear(selectedName);
-            const selected = catalogs.find((item) => item.catalogName === selectedName);
+            const selectedId = event.target.value;
+            setCatalogYearId(selectedId);
+            const selected = catalogs.find(
+              (item) => String(item.id) === selectedId,
+            );
             if (selected) {
               setStartSeason(selected.startTerm);
               setStartYear(String(selected.startYear));
@@ -383,28 +512,37 @@ export default function RequestPlanForm() {
           disabled={isCatalogsLoading || catalogs.length === 0}
           required
         >
-          {isCatalogsLoading ? <option value="">Loading catalogs...</option> : null}
+          {isCatalogsLoading ? (
+            <option value="">Loading catalogs...</option>
+          ) : null}
           {!isCatalogsLoading && catalogs.length === 0 ? (
             <option value="">No catalogs available</option>
           ) : null}
           {!isCatalogsLoading
             ? catalogs.map((catalogOption) => (
-                <option key={catalogOption.catalogName} value={catalogOption.catalogName}>
+                <option key={catalogOption.id} value={catalogOption.id}>
                   {catalogOption.catalogName}
                 </option>
               ))
             : null}
         </select>
         {catalogsLoadError ? (
-          <p className="mt-2 text-xs font-medium text-amber-700">{catalogsLoadError}</p>
+          <p className="mt-2 text-xs font-medium text-amber-700">
+            {catalogsLoadError}
+          </p>
         ) : null}
       </div>
 
       <div>
-        <p className="mb-2 text-sm font-medium text-slate-700">Start Semester</p>
+        <p className="mb-2 text-sm font-medium text-slate-700">
+          Start Semester
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="startSeason" className="mb-2 block text-sm text-slate-600">
+            <label
+              htmlFor="startSeason"
+              className="mb-2 block text-sm text-slate-600"
+            >
               Season
             </label>
             <select
@@ -423,7 +561,10 @@ export default function RequestPlanForm() {
           </div>
 
           <div>
-            <label htmlFor="startYear" className="mb-2 block text-sm text-slate-600">
+            <label
+              htmlFor="startYear"
+              className="mb-2 block text-sm text-slate-600"
+            >
               Year
             </label>
             <select
@@ -448,7 +589,7 @@ export default function RequestPlanForm() {
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+        className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isLoading ? "Generating..." : "Generate Plan"}
       </button>
