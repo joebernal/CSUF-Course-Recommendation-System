@@ -182,7 +182,7 @@ for page in range(1, TOTAL_PAGES + 1):
         if not desc_block:
             continue
 
-        # ✅ remove UI junk nodes inside the course block
+        #  remove UI junk nodes inside the course block
         for junk in desc_block.select("div.gateway-toolbar, div.tooltip, script, style"):
             junk.decompose()
 
@@ -191,7 +191,7 @@ for page in range(1, TOTAL_PAGES + 1):
 
         description = desc_block.get_text(" ", strip=True)
 
-        # ✅ NEW: remove known UI junk phrases that still appear as text
+        #  NEW: remove known UI junk phrases that still appear as text
         junk_phrases = [
             "HELP 2025-2026 University Catalog",
             "Print-Friendly Page (opens a new window)",
