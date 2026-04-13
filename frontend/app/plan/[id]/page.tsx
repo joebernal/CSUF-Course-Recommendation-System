@@ -171,7 +171,6 @@ export default async function PlanDetailsPage({
 
                     <SemesterCoursesTable
                       planId={details.id}
-                      semester={semester.semester}
                       courses={semester.courses}
                     />
                   </article>
