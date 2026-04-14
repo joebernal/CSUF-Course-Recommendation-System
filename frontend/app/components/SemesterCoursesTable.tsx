@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export type PlanCourse = {
   code: string;
@@ -11,60 +12,71 @@ export type PlanCourse = {
 
 type SemesterCoursesTableProps = {
   planId: string;
-  semester: string;
   courses: PlanCourse[];
 };
 
 export default function SemesterCoursesTable({
   planId,
-  semester,
   courses,
 }: SemesterCoursesTableProps) {
-  const [courseRows, setCourseRows] = useState(courses);
-  const [pendingCode, setPendingCode] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const router = useRouter();
+  const [expandedCourseCode, setExpandedCourseCode] = useState<string | null>(
+    null,
+  );
+  const [courseDescriptions, setCourseDescriptions] = useState<
+    Record<string, string>
+  >({});
+  const [isLoadingDescription, setIsLoadingDescription] = useState(false);
 
-  const markComplete = async (courseCode: string) => {
-    setPendingCode(courseCode);
-    setMessage("");
-    setErrorMessage("");
+  const markComplete = (courseCode: string) => {
+    router.push(
+      `/completed-courses?prefill=${encodeURIComponent(courseCode)}&fromPlan=${encodeURIComponent(planId)}`,
+    );
+  };
 
+  const toggleCourseDescription = async (courseCode: string) => {
+    if (expandedCourseCode === courseCode) {
+      setExpandedCourseCode(null);
+      return;
+    }
+
+    setExpandedCourseCode(courseCode);
+
+    if (courseDescriptions[courseCode]) {
+      return;
+    }
+
+    setIsLoadingDescription(true);
     try {
-      const response = await fetch(`/api/plans/${planId}/courses/complete`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `/api/courses/description?course_code=${encodeURIComponent(courseCode)}`,
+        {
+          cache: "no-store",
         },
-        body: JSON.stringify({
-          semester,
-          courseCode,
-          completed: true,
-        }),
-      });
+      );
+
+      const data = (await response.json()) as {
+        courseDescription?: string;
+        error?: string;
+      };
 
       if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+        throw new Error(data.error || "Failed to load course description.");
       }
 
-      setCourseRows((rows) =>
-        rows.map((row) =>
-          row.code === courseCode
-            ? {
-                ...row,
-                isCompleted: true,
-              }
-            : row
-        )
-      );
-
-      setMessage(`${courseCode} was marked complete.`);
-    } catch {
-      setErrorMessage(
-        `Could not mark ${courseCode} complete. Confirm your API endpoint is available.`
-      );
+      setCourseDescriptions((prev) => ({
+        ...prev,
+        [courseCode]:
+          data.courseDescription || "No course description available.",
+      }));
+    } catch (error) {
+      console.error("Error loading course description:", error);
+      setCourseDescriptions((prev) => ({
+        ...prev,
+        [courseCode]: "Unable to load course description right now.",
+      }));
     } finally {
-      setPendingCode(null);
+      setIsLoadingDescription(false);
     }
   };
 
@@ -82,55 +94,72 @@ export default function SemesterCoursesTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
-            {courseRows.map((course) => (
-              <tr key={course.code}>
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-900">
-                  {course.code}
-                </td>
-                <td className="px-4 py-3">{course.title}</td>
-                <td className="whitespace-nowrap px-4 py-3">{course.units}</td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  {course.isCompleted ? (
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                      Complete
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                      Pending
-                    </span>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => markComplete(course.code)}
-                    disabled={Boolean(course.isCompleted) || pendingCode === course.code}
-                    className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {course.isCompleted
-                      ? "Completed"
-                      : pendingCode === course.code
-                        ? "Saving..."
-                        : "Mark Complete"}
-                  </button>
-                </td>
-              </tr>
+            {courses.map((course) => (
+              <Fragment key={course.code}>
+                <tr>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void toggleCourseDescription(course.code);
+                      }}
+                      className="rounded px-1 py-0.5 text-left text-cyan-800 underline decoration-cyan-400 underline-offset-4 transition hover:text-cyan-900"
+                    >
+                      {course.code}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">{course.title}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{course.units}</td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    {course.isCompleted ? (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                        Complete
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        Pending
+                      </span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => markComplete(course.code)}
+                      disabled={Boolean(course.isCompleted)}
+                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {course.isCompleted ? "Completed" : "Mark Complete"}
+                    </button>
+                  </td>
+                </tr>
+                {expandedCourseCode === course.code ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                    >
+                      {isLoadingDescription ? (
+                        <span className="text-slate-500">Loading description...</span>
+                      ) : (
+                        <>
+                          <p className="font-semibold text-slate-900">
+                            {course.code} Description
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap">
+                            {courseDescriptions[course.code] ||
+                              "No course description available."}
+                          </p>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
 
-      {message ? (
-        <p className="mx-4 mb-4 mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {message}
-        </p>
-      ) : null}
-
-      {errorMessage ? (
-        <p className="mx-4 mb-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {errorMessage}
-        </p>
-      ) : null}
     </div>
   );
 }

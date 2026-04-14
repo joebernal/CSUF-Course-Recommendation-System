@@ -8,6 +8,7 @@ import Navbar from "@/app/components/Navbar";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
 import { auth } from "@/lib/firebase/client";
 import { onAuthStateChanged } from "firebase/auth";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
@@ -84,6 +85,14 @@ export default function DashboardPage() {
                 Keep track of your plan requests here. Mark courses as you go
                 and request a new plan.
               </p>
+              <div className="mt-5">
+                <Link
+                  href="/completed-courses"
+                  className="inline-flex items-center rounded-lg border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-800 transition hover:bg-cyan-100"
+                >
+                  Manage Completed Courses
+                </Link>
+              </div>
             </section>
 
             {loading ? (
