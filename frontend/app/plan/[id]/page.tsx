@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Footer from "@/app/components/Footer";
 import Navbar from "@/app/components/Navbar";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
+import GraduationTimeline from "@/app/components/GraduationTimeline";
 import SemesterCoursesTable, {
   type PlanCourse,
 } from "@/app/components/SemesterCoursesTable";
@@ -141,7 +142,21 @@ export default async function PlanDetailsPage({
                 </article>
               </div>
             </section>
-
+            <GraduationTimeline
+                courses={details.semesters.flatMap((s) =>
+                  s.courses.map((c) => ({
+                    term: s.semester.split(" ")[0],
+                    year: parseInt(s.semester.split(" ")[1]),
+                    course_code: c.code,
+                    course_name: c.title,
+                    units_max: c.units,
+                    isCompleted: c.isCompleted,
+                  }))
+                )}
+                totalUnitsRequired={totalUnits}
+                majorName={details.major}
+                catalogYear={details.catalogYear}
+              />
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-slate-900">

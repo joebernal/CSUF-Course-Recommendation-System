@@ -10,6 +10,7 @@ from routes.major_routes import major_bp
 app = Flask(__name__)
 
 CORS(app, origins=[
+    "http://localhost:3000"
     "http://127.0.0.1:5500",
     "http://127.0.0.1:5001",
     "http://127.0.0.1:5501",
