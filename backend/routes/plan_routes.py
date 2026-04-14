@@ -208,7 +208,53 @@ def get_plan_details(plan_id):
     except Exception as e:
         print("GET PLAN DETAILS ERROR:", e)
         return jsonify({"error": str(e)}), 500
-    
+
+@plan_bp.route("/<int:plan_id>/degree-requirements", methods=["GET"])
+def get_degree_requirements(plan_id):
+    try:
+        # 1) get the plan's major + catalog year
+        plan = query_db(
+            "SELECT major_id, catalog_year_id FROM course_plans WHERE id = %s",
+            (plan_id,),
+            one=True
+        )
+
+        if not plan:
+            return jsonify({"error": "Plan not found"}), 404
+
+        # 2) get degree requirements for that major/year (filter out seed/test rows)
+        requirements = query_db(
+            """
+            SELECT
+                requirement_name,
+                required_units_min,
+                note
+            FROM major_requirements
+            WHERE major_id = %s
+              AND catalog_year_id = %s
+              AND note NOT LIKE 'Seed data:%'
+            ORDER BY id
+            """,
+            (plan["major_id"], plan["catalog_year_id"])
+        ) or []
+
+        # 3) format response cleanly
+        formatted = [
+            {
+                "requirementName": r["requirement_name"],
+                "requiredUnitsMin": float(r["required_units_min"]) if r["required_units_min"] is not None else None,
+                "note": r["note"],
+            }
+            for r in requirements
+        ]
+
+        return jsonify({"requirements": formatted}), 200
+
+    except Exception as e:
+        print("GET DEGREE REQUIREMENTS ERROR:", e)
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @plan_bp.route("/catalogs", methods=["GET"])
 def get_catalogs():
     try:
