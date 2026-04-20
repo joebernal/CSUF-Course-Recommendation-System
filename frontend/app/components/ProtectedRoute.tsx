@@ -3,7 +3,7 @@
 import { clearClientSessionCookie, setClientSessionCookie } from "@/lib/auth/clientSession";
 import { auth } from "@/lib/firebase/client";
 import { onAuthStateChanged } from "firebase/auth";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 type ProtectedRouteProps = {
@@ -12,8 +12,6 @@ type ProtectedRouteProps = {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
@@ -22,7 +20,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         clearClientSessionCookie();
 
         const loginUrl = new URL("/login", window.location.origin);
-        const nextPath = `${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`;
+        const nextPath = `${window.location.pathname}${window.location.search}`;
         loginUrl.searchParams.set("next", nextPath);
 
         router.replace(`${loginUrl.pathname}${loginUrl.search}`);
@@ -34,7 +32,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     });
 
     return () => unsubscribe();
-  }, [pathname, router, searchParams]);
+  }, [router]);
 
   if (!isAuthorized) {
     return (
