@@ -4,15 +4,13 @@ import { clearClientSessionCookie, setClientSessionCookie } from "@/lib/auth/cli
 import { auth } from "@/lib/firebase/client";
 import { onAuthStateChanged } from "firebase/auth";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { connection } from "next/server";
-import { useEffect, useState, Suspense, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 type ProtectedRouteProps = {
   children: ReactNode;
 };
 
-export default async function ProtectedRoute({ children }: ProtectedRouteProps) {
-  await connection();
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
