@@ -1,6 +1,6 @@
 # Environment files
 backend/.env
-frontend/.env
+frontend/.env local
 
 # Virtual environment
 backend/venv/
@@ -8,6 +8,11 @@ backend/venv/
 # Python cache
 __pycache__/
 *.pyc
+
+# env/secrets
+.env
+.env.local
+
 
 # macOS
 .DS_Store
