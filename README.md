@@ -1,6 +1,11 @@
 # CSUF Course Recommendation System
 
-## Run With Docker Compose
+## Requirements
+
+This project runs best using docker. The installation process depends on the operating system.
+Refer the docker documentation [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
+
+## Running With Docker Compose
 
 This project includes a 3-container setup:
 - `db`: MySQL 8.4
@@ -20,13 +25,17 @@ Edit `.env` with your Firebase values if needed.
 ### 2. Build and run
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 ### 3. Open the app
 
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:5001
+
+### Customizing ports
+
+To customize the ports, you are able to edit the docker-compose.yml. By default this project runs on port 30000 allowing for a reverse proxy to provide HTTPs.
 
 ## Database Initialization
 
@@ -45,5 +54,5 @@ If you need to re-run initialization from scratch, remove the DB volume:
 
 ```bash
 docker compose down -v
-docker compose up --build
+docker compose up --build -d
 ```
