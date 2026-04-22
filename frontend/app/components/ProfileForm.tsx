@@ -42,6 +42,12 @@ export default function ProfileForm() {
       return;
     }
 
+    if (!uid) {
+      setIsError(true);
+      setMessage("You must be signed in to update your profile.");
+      return;
+    }
+
     if (newPassword || confirmPassword || currentPassword) {
       if (!currentPassword) {
         setIsError(true);
@@ -72,6 +78,7 @@ export default function ProfileForm() {
         },
         body: JSON.stringify({
           google_uid: uid,
+          full_name: name.trim(),
           enrollmentStatus: null, // Not updated from profile form
           preferredTerms: { winter: false, summer: false }, // Not updated from profile form
           preferredLanguage,
