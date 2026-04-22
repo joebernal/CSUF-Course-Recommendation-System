@@ -24,9 +24,16 @@ type PlanDetails = {
   semesters: SemesterPlan[];
 };
 
-async function getPlanDetails(id: string): Promise<PlanDetails | null> {
+async function getPlanDetails(
+  id: string,
+  googleUid?: string,
+): Promise<PlanDetails | null> {
   try {
-    const response = await fetch(`http://localhost:3000/api/plans/${id}`, {
+    const query = googleUid
+      ? `?google_uid=${encodeURIComponent(googleUid)}`
+      : "";
+
+    const response = await fetch(`http://localhost:3000/api/plans/${id}${query}`, {
       cache: "no-store",
     });
 
@@ -47,11 +54,14 @@ async function getPlanDetails(id: string): Promise<PlanDetails | null> {
 
 export default async function PlanDetailsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ google_uid?: string }>;
 }) {
   const { id } = await params;
-  const details = await getPlanDetails(id);
+  const { google_uid: googleUid } = await searchParams;
+  const details = await getPlanDetails(id, googleUid);
 
   if (!details) {
     notFound();
