@@ -31,6 +31,51 @@ export default function ProfileForm() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!uid) {
+      return;
+    }
+
+    const loadProfile = async () => {
+      try {
+        const response = await fetch(
+          `/api/users/profile?google_uid=${encodeURIComponent(uid)}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          },
+        );
+
+        const data = (await response.json()) as {
+          error?: string;
+          fullName?: string;
+          preferredLanguage?: string;
+          careerInterest?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load profile.");
+        }
+
+        if (typeof data.fullName === "string" && data.fullName.trim()) {
+          setName(data.fullName.trim());
+        }
+
+        if (typeof data.preferredLanguage === "string" && data.preferredLanguage.trim()) {
+          setPreferredLanguage(data.preferredLanguage.trim());
+        }
+
+        if (typeof data.careerInterest === "string" && data.careerInterest.trim()) {
+          setCareerInterest(data.careerInterest.trim());
+        }
+      } catch (error) {
+        console.error("Profile prefill error:", error);
+      }
+    };
+
+    void loadProfile();
+  }, [uid]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage("");
@@ -39,6 +84,12 @@ export default function ProfileForm() {
     if (!name.trim()) {
       setIsError(true);
       setMessage("Please provide your name.");
+      return;
+    }
+
+    if (!uid) {
+      setIsError(true);
+      setMessage("You must be signed in to update your profile.");
       return;
     }
 
@@ -72,6 +123,7 @@ export default function ProfileForm() {
         },
         body: JSON.stringify({
           google_uid: uid,
+          full_name: name.trim(),
           enrollmentStatus: null, // Not updated from profile form
           preferredTerms: { winter: false, summer: false }, // Not updated from profile form
           preferredLanguage,

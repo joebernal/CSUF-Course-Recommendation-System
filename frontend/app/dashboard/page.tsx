@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Student");
+  const [googleUid, setGoogleUid] = useState("");
   const [tableRows, setTableRows] = useState<DashboardPlanRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -21,6 +22,7 @@ export default function DashboardPage() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setUserName("Student");
+        setGoogleUid("");
         setTableRows([]);
         setLoading(false);
         return;
@@ -30,6 +32,7 @@ export default function DashboardPage() {
       const emailPrefix = user.email?.split("@")[0]?.trim();
       const name = displayName || emailPrefix || "Student";
       setUserName(name);
+      setGoogleUid(user.uid);
 
       try {
         setLoading(true);
@@ -104,7 +107,7 @@ export default function DashboardPage() {
                 <p className="text-sm text-red-700">{error}</p>
               </section>
             ) : (
-              <DashboardTable rows={tableRows} />
+              <DashboardTable rows={tableRows} googleUid={googleUid} />
             )}
           </div>
         </main>

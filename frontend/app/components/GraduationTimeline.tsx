@@ -76,12 +76,16 @@ export default function GraduationTimeline({
     return { label: `${s.term} ${s.year}`, term: s.term, year: s.year, units: s.units, status };
   });
 
-  const completedUnits = semesters
-    .filter((s) => s.status === "complete")
-    .reduce((sum, s) => sum + s.units, 0);
+  const completedUnits = courses.reduce(
+    (sum, course) => sum + (course.isCompleted ? course.units_max : 0),
+    0,
+  );
 
-  const remainingUnits = totalUnitsRequired - completedUnits;
-  const pct = Math.min(100, Math.round((completedUnits / totalUnitsRequired) * 100));
+  const remainingUnits = Math.max(totalUnitsRequired - completedUnits, 0);
+  const pct = Math.min(
+    100,
+    Math.round((completedUnits / Math.max(totalUnitsRequired, 1)) * 100),
+  );
 
   const lastSem = semesters[semesters.length - 1];
   const expectedGrad = lastSem ? lastSem.label : "—";
