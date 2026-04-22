@@ -146,3 +146,52 @@ def update_profile():
     except Exception as e:
         print("UPDATE PROFILE ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
+
+
+@user_bp.route("/profile", methods=["GET"])
+def get_profile():
+    try:
+        google_uid = (request.args.get("google_uid") or "").strip()
+
+        if not google_uid:
+            return jsonify({"error": "google_uid is required"}), 400
+
+        profile = query_db(
+            """
+            SELECT
+                u.full_name,
+                u.enrollment_status,
+                u.available_winter,
+                u.available_summer,
+                up.preferred_language,
+                up.career_interest
+            FROM users u
+            LEFT JOIN user_preferences up
+                ON up.user_id = u.id
+            WHERE u.google_uid = %s
+            LIMIT 1
+            """,
+            (google_uid,),
+            one=True,
+        )
+
+        if not profile:
+            return jsonify({"error": "User not found"}), 404
+
+        return jsonify({
+            "fullName": profile["full_name"],
+            "enrollmentStatus": profile["enrollment_status"],
+            "preferredTerms": {
+                "winter": bool(profile["available_winter"]),
+                "summer": bool(profile["available_summer"]),
+            },
+            "preferredLanguage": profile["preferred_language"] or "Python",
+            "careerInterest": profile["career_interest"] or "Undecided",
+        }), 200
+
+    except mysql.connector.Error as e:
+        print("MYSQL ERROR:", e)
+        return jsonify({"error": f"MySQL error: {e.msg}"}), 500
+    except Exception as e:
+        print("GET PROFILE ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
