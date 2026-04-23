@@ -24,6 +24,16 @@ type PlanDetails = {
   semesters: SemesterPlan[];
 };
 
+type DegreeRequirement = {
+  requirementName: string;
+  requiredUnitsMin: number | null;
+  note: string | null;
+};
+
+type DegreeRequirementsResponse = {
+  requirements: DegreeRequirement[];
+};
+
 async function getPlanDetails(
   id: string,
   googleUid?: string,
@@ -33,9 +43,12 @@ async function getPlanDetails(
       ? `?google_uid=${encodeURIComponent(googleUid)}`
       : "";
 
-    const response = await fetch(`http://localhost:3000/api/plans/${id}${query}`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      `http://localhost:3000/api/plans/${id}${query}`,
+      {
+        cache: "no-store",
+      },
+    );
 
     if (response.status === 404) {
       return null;
@@ -54,18 +67,24 @@ async function getPlanDetails(
 
 async function getDegreeRequirements(id: string): Promise<DegreeRequirement[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001";
+    const baseUrl =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001";
 
-    const response = await fetch(`${baseUrl}/api/plans/${id}/degree-requirements`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      `${baseUrl}/api/plans/${id}/degree-requirements`,
+      {
+        cache: "no-store",
+      },
+    );
 
     if (response.status === 404) {
       return [];
     }
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch degree requirements: ${response.status}`);
+      throw new Error(
+        `Failed to fetch degree requirements: ${response.status}`,
+      );
     }
 
     const data = (await response.json()) as DegreeRequirementsResponse;
@@ -87,7 +106,6 @@ export default async function PlanDetailsPage({
   const { google_uid: googleUid } = await searchParams;
   const details = await getPlanDetails(id, googleUid);
 
-  const details = await getPlanDetails(id);
   if (!details) {
     notFound();
   }
@@ -180,20 +198,20 @@ export default async function PlanDetailsPage({
               </div>
             </section>
             <GraduationTimeline
-                courses={details.semesters.flatMap((s) =>
-                  s.courses.map((c) => ({
-                    term: s.semester.split(" ")[0],
-                    year: parseInt(s.semester.split(" ")[1]),
-                    course_code: c.code,
-                    course_name: c.title,
-                    units_max: c.units,
-                    isCompleted: c.isCompleted,
-                  }))
-                )}
-                totalUnitsRequired={totalUnits}
-                majorName={details.major}
-                catalogYear={details.catalogYear}
-              />
+              courses={details.semesters.flatMap((s) =>
+                s.courses.map((c) => ({
+                  term: s.semester.split(" ")[0],
+                  year: parseInt(s.semester.split(" ")[1]),
+                  course_code: c.code,
+                  course_name: c.title,
+                  units_max: c.units,
+                  isCompleted: c.isCompleted,
+                })),
+              )}
+              totalUnitsRequired={totalUnits}
+              majorName={details.major}
+              catalogYear={details.catalogYear}
+            />
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-slate-900">
@@ -259,7 +277,9 @@ export default async function PlanDetailsPage({
                         </p>
                       </div>
                       {req.note ? (
-                        <p className="mt-2 text-sm text-slate-700">{req.note}</p>
+                        <p className="mt-2 text-sm text-slate-700">
+                          {req.note}
+                        </p>
                       ) : null}
                     </article>
                   ))}
