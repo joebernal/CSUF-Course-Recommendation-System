@@ -7,7 +7,7 @@ from routes.db_operations import query_db
 
 FULL_TIME_MAX_UNITS = 12
 PART_TIME_MAX_UNITS = 6
-MAX_GENERATED_TERMS = 20
+MAX_GENERATED_TERMS = 35
 
 LANGUAGE_COURSE_MAP = {
     "C": "CPSC 223C",

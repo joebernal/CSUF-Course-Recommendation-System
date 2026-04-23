@@ -204,8 +204,6 @@ export default function RequestPlanForm() {
           : onboardingPreferences.takeSummerCourses
             ? "summer"
             : null;
-
-    
   }, []);
 
   useEffect(() => {
@@ -363,6 +361,7 @@ export default function RequestPlanForm() {
       catalog_year_id: Number.parseInt(catalogYearId, 10),
       starting_term: startSeason,
       starting_year: Number.parseInt(startYear, 10),
+      enrollment_status: enrollmentStatus,
       available_winter: availableWinter,
       available_summer: availableSummer,
     };
@@ -480,7 +479,7 @@ export default function RequestPlanForm() {
           </p>
         ) : null}
       </fieldset>
-        <fieldset>
+      <fieldset>
         <legend className="mb-2 block text-sm font-medium text-slate-700">
           Semester Availability
         </legend>

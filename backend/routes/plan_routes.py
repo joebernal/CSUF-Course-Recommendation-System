@@ -72,7 +72,7 @@ def generate_plan():
         catalog_year_id = data.get("catalog_year_id")
         starting_term = data.get("starting_term")
         starting_year = data.get("starting_year")
-
+        enrollment_status = data.get("enrollment_status")
         available_winter = data.get("available_winter")
         available_summer = data.get("available_summer")
 
@@ -100,18 +100,19 @@ def generate_plan():
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        # Update winter/summer availability before generating the plan
-        if available_winter is not None or available_summer is not None:
+        if enrollment_status or available_winter is not None or available_summer is not None:
             query_db(
                 """
                 UPDATE users
-                SET available_winter = %s,
-                    available_summer = %s
+                SET enrollment_status = COALESCE(%s, enrollment_status),
+                    available_winter = COALESCE(%s, available_winter),
+                    available_summer = COALESCE(%s, available_summer)
                 WHERE id = %s
                 """,
                 (
-                    bool(available_winter),
-                    bool(available_summer),
+                    enrollment_status,
+                    bool(available_winter) if available_winter is not None else None,
+                    bool(available_summer) if available_summer is not None else None,
                     user["id"],
                 ),
             )
