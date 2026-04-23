@@ -52,6 +52,30 @@ async function getPlanDetails(
   }
 }
 
+async function getDegreeRequirements(id: string): Promise<DegreeRequirement[]> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001";
+
+    const response = await fetch(`${baseUrl}/api/plans/${id}/degree-requirements`, {
+      cache: "no-store",
+    });
+
+    if (response.status === 404) {
+      return [];
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch degree requirements: ${response.status}`);
+    }
+
+    const data = (await response.json()) as DegreeRequirementsResponse;
+    return data.requirements || [];
+  } catch (error) {
+    console.error("getDegreeRequirements error:", error);
+    return [];
+  }
+}
+
 export default async function PlanDetailsPage({
   params,
   searchParams,
@@ -63,9 +87,12 @@ export default async function PlanDetailsPage({
   const { google_uid: googleUid } = await searchParams;
   const details = await getPlanDetails(id, googleUid);
 
+  const details = await getPlanDetails(id);
   if (!details) {
     notFound();
   }
+
+  const degreeRequirements = await getDegreeRequirements(id);
 
   const totalUnits = details.semesters.reduce(
     (sum, semester) =>
@@ -201,6 +228,43 @@ export default async function PlanDetailsPage({
                   </article>
                 ))}
               </div>
+            </section>
+
+            {/* degree requirements section (bottom) */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900">
+                  Degree Requirements
+                </h2>
+                <p className="text-sm text-slate-600">{details.major}</p>
+              </div>
+
+              {degreeRequirements.length === 0 ? (
+                <p className="text-sm text-slate-600">
+                  No degree requirements found for this plan.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {degreeRequirements.map((req, idx) => (
+                    <article
+                      key={`${req.requirementName}-${idx}`}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                        <p className="text-base font-semibold text-slate-900">
+                          {req.requirementName}
+                        </p>
+                        <p className="text-sm font-medium text-slate-700">
+                          {req.requiredUnitsMin ?? "—"} units
+                        </p>
+                      </div>
+                      {req.note ? (
+                        <p className="mt-2 text-sm text-slate-700">{req.note}</p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         </main>

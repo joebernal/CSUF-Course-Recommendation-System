@@ -7,6 +7,9 @@ from routes.plan_routes import plan_bp
 from routes.user_routes import user_bp
 from routes.major_routes import major_bp
 
+from dotenv import load_dotenv
+load_dotenv()
+
 app = Flask(__name__)
 
 CORS(app, origins=[
@@ -14,7 +17,9 @@ CORS(app, origins=[
     "http://127.0.0.1:5500",
     "http://127.0.0.1:5001",
     "http://127.0.0.1:5501",
-    "http://127.0.0.1:5002"
+    "http://127.0.0.1:5002",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
 ], supports_credentials=True)
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
