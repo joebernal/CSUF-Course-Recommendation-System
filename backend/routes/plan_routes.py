@@ -73,6 +73,9 @@ def generate_plan():
         starting_term = data.get("starting_term")
         starting_year = data.get("starting_year")
 
+        available_winter = data.get("available_winter")
+        available_summer = data.get("available_summer")
+
         if not google_uid:
             return jsonify({"error": "google_uid is required"}), 400
 
@@ -96,6 +99,22 @@ def generate_plan():
 
         if not user:
             return jsonify({"error": "User not found"}), 404
+
+        # Update winter/summer availability before generating the plan
+        if available_winter is not None or available_summer is not None:
+            query_db(
+                """
+                UPDATE users
+                SET available_winter = %s,
+                    available_summer = %s
+                WHERE id = %s
+                """,
+                (
+                    bool(available_winter),
+                    bool(available_summer),
+                    user["id"],
+                ),
+            )
 
         result = generate_plan_for_user(
             user_id=user["id"],

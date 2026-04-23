@@ -119,13 +119,17 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
 
         semester_courses = []
         current_units = 0
-        major_unit_target = max_semester_units / 2
+
+        term_max_units = get_term_max_units(term, max_semester_units)
+        major_unit_target = term_max_units / 2
+
+        print(f"[PLAN DEBUG] TERM UNIT LIMIT: {term} {year} = {term_max_units} units")
 
         current_units = debug_step(
             f"fill_semester_with_major_courses ({term} {year})",
             fill_semester_with_major_courses,
             current_units=current_units,
-            max_units=max_semester_units,
+            max_units=term_max_units,
             target_major_units=major_unit_target,
             semester_courses=semester_courses,
             selected_course_ids=selected_course_ids,
@@ -140,7 +144,7 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
             f"fill_semester_with_ge_courses ({term} {year})",
             fill_semester_with_ge_courses,
             current_units=current_units,
-            max_units=max_semester_units,
+            max_units=term_max_units,
             semester_courses=semester_courses,
             selected_course_ids=selected_course_ids,
             completed_course_ids=completed_course_ids,
@@ -154,7 +158,7 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
             f"fill_remaining_with_major_courses ({term} {year})",
             fill_remaining_with_major_courses,
             current_units=current_units,
-            max_units=max_semester_units,
+            max_units=term_max_units,
             semester_courses=semester_courses,
             selected_course_ids=selected_course_ids,
             completed_course_ids=completed_course_ids,
@@ -238,6 +242,13 @@ def get_user_profile(user_id):
 
 def get_max_semester_units(enrollment_status):
     return FULL_TIME_MAX_UNITS if enrollment_status == "fulltime" else PART_TIME_MAX_UNITS
+
+
+def get_term_max_units(term, max_semester_units):
+    if term in {"Winter", "Summer"}:
+        return max_semester_units / 2
+
+    return max_semester_units
 
 
 def get_completed_course_ids(user_id):
@@ -606,7 +617,6 @@ def try_fill_major_requirement(
 
     courses = requirement["courses"]
 
-    # choice_group = 0 -> all required
     required_courses = [c for c in courses if c["choice_group"] == 0]
     for course in required_courses:
         if current_units >= target_major_units:
@@ -628,7 +638,6 @@ def try_fill_major_requirement(
         if required_units_max > 0 and progress["completed_units"] >= required_units_max:
             return current_units
 
-    # choice_group = 1 -> choose one
     if not progress["choice_group_1_satisfied"]:
         one_choice_courses = [c for c in courses if c["choice_group"] == 1]
 
@@ -659,7 +668,6 @@ def try_fill_major_requirement(
             if required_units_max > 0 and progress["completed_units"] >= required_units_max:
                 return current_units
 
-    # choice_group = 99 -> keep selecting until required_units_max is hit
     repeatable_courses = [c for c in courses if c["choice_group"] == 99]
 
     safety_counter = 0
@@ -691,7 +699,6 @@ def try_fill_major_requirement(
             major_progress=major_progress,
         )
 
-        # If nothing changed, remove this candidate from the repeatable pool for this pass
         if (
             progress["selected_course_ids"] == before_ids
             and progress["completed_units"] == before_units
@@ -798,30 +805,14 @@ def resolve_deepest_unmet_major_prerequisite(
     for group_number in sorted(prerequisite_groups.keys()):
         group_items = prerequisite_groups[group_number]
 
-        # If any item in the group is already satisfied, this group is satisfied
         if is_prerequisite_group_satisfied(group_items, completed_course_ids, selected_course_ids):
             continue
 
         course_items = [item for item in group_items if item["item_type"] == "course" and item["required_course_id"]]
-        exam_items = [item for item in group_items if item["item_type"] == "exam"]
-        text_items = [item for item in group_items if item["item_type"] == "text"]
-
-        # for item in exam_items:
-        #     print(
-        #         f"[PLAN DEBUG] Exam prerequisite logged but not enforced for course_id={course_id}: "
-        #         f"{item['exam_name']}"
-        #     )
-
-        # for item in text_items:
-        #     print(
-        #         f"[PLAN DEBUG] Text prerequisite logged but not enforced for course_id={course_id}: "
-        #         f"{item['item_text']}"
-        #     )
 
         if not course_items:
             return None
 
-        # Deterministic choice for now: first course option in the OR group
         chosen_item = course_items[0]
         prereq_course = {
             "course_id": chosen_item["required_course_id"],
@@ -853,10 +844,6 @@ def is_prerequisite_group_satisfied(group_items, completed_course_ids, selected_
         if item["item_type"] == "course" and item["required_course_id"]:
             if item["required_course_id"] in completed_course_ids or item["required_course_id"] in selected_course_ids:
                 return True
-        # elif item["item_type"] == "exam":
-        #     print(f"[PLAN DEBUG] Exam prerequisite encountered but not enforced: {item['exam_name']}")
-        # elif item["item_type"] == "text":
-        #     print(f"[PLAN DEBUG] Text prerequisite encountered but not enforced: {item['item_text']}")
 
     return False
 
@@ -915,9 +902,7 @@ def add_major_course_to_semester(
         if resolved_requirement["choice_group"] == 1:
             major_progress[req_id]["choice_group_1_satisfied"] = True
 
-        print(
-            f"[PLAN DEBUG] Counting {course['course_code']} toward '{applied_to}'"
-        )
+        print(f"[PLAN DEBUG] Counting {course['course_code']} toward '{applied_to}'")
 
     add_course_to_semester(
         semester_courses,
@@ -1007,18 +992,6 @@ def course_prerequisites_satisfied(course_id, completed_course_ids, selected_cou
     return True
 
 
-# def log_non_prerequisite_requirements(course_id, prerequisite_data_by_course):
-#     course_data = prerequisite_data_by_course.get(course_id, {})
-
-#     for group_items in course_data.get("corequisite", {}).values():
-#         for item in group_items:
-#             print(f"[PLAN DEBUG] Corequisite logged but not enforced for course_id={course_id}: {item}")
-
-#     for group_items in course_data.get("restriction", {}).values():
-#         for item in group_items:
-#             print(f"[PLAN DEBUG] Restriction logged but not enforced for course_id={course_id}: {item}")
-
-
 def is_course_eligible(
     course,
     current_units,
@@ -1038,8 +1011,6 @@ def is_course_eligible(
 
     if current_units + units > max_units:
         return False
-
-    # log_non_prerequisite_requirements(course_id, prerequisite_data_by_course)
 
     if not course_prerequisites_satisfied(
         course_id=course_id,
@@ -1141,29 +1112,3 @@ def save_generated_plan(user_id, major_id, catalog_year_id, plan_name, semesters
             )
 
     return plan_id
-
-
-# if __name__ == "__main__":
-#     try:
-#         print("\n=== RUNNING PLAN GENERATOR TEST ===\n")
-#
-#         TEST_USER_ID = 1
-#         TEST_MAJOR_ID = 1
-#         TEST_CATALOG_YEAR_ID = 1
-#         TEST_START_TERM = "Fall"
-#         TEST_START_YEAR = 2025
-#
-#         result = generate_plan_for_user(
-#             user_id=TEST_USER_ID,
-#             major_id=TEST_MAJOR_ID,
-#             catalog_year_id=TEST_CATALOG_YEAR_ID,
-#             starting_term=TEST_START_TERM,
-#             starting_year=TEST_START_YEAR,
-#         )
-#
-#         print("\n=== GENERATED PLAN SUCCESS ===\n")
-#         print(result)
-#
-#     except Exception as e:
-#         print("\n=== PLAN GENERATION FAILED ===\n")
-#         print(e)
