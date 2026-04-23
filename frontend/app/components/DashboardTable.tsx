@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type DashboardPlanRow = {
   id: string;
@@ -15,21 +15,28 @@ type SortDirection = "asc" | "desc";
 
 type DashboardTableProps = {
   rows: DashboardPlanRow[];
+  googleUid?: string;
 };
 
 const pageSize = 6;
 
-export default function DashboardTable({ rows }: DashboardTableProps) {
+export default function DashboardTable({ rows, googleUid }: DashboardTableProps) {
+  const [tableRows, setTableRows] = useState(rows);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("dateRequested");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [message, setMessage] = useState("");
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTableRows(rows);
+  }, [rows]);
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return rows.filter((row) => {
+    return tableRows.filter((row) => {
       const matchesQuery =
         normalizedQuery.length === 0 ||
         row.planName.toLowerCase().includes(normalizedQuery) ||
@@ -38,7 +45,7 @@ export default function DashboardTable({ rows }: DashboardTableProps) {
 
       return matchesQuery;
     });
-  }, [rows, searchQuery]);
+  }, [tableRows, searchQuery]);
 
   const sortedRows = useMemo(() => {
     const sorted = [...filteredRows].sort((a, b) => {
@@ -63,6 +70,38 @@ export default function DashboardTable({ rows }: DashboardTableProps) {
 
     setSortKey(nextKey);
     setSortDirection("asc");
+  };
+
+  const handleDeletePlan = async (planId: string, planName: string) => {
+    if (!googleUid) {
+      setMessage("Sign in again, then try deleting this plan.");
+      return;
+    }
+
+    setDeletingPlanId(planId);
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/plans/${encodeURIComponent(planId)}?google_uid=${encodeURIComponent(googleUid)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const data = (await response.json()) as { error?: string; message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to delete plan.");
+      }
+
+      setTableRows((current) => current.filter((row) => row.id !== planId));
+      setMessage(data.message || `${planName} deleted successfully.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to delete plan.");
+    } finally {
+      setDeletingPlanId(null);
+    }
   };
 
   return (
@@ -137,21 +176,23 @@ export default function DashboardTable({ rows }: DashboardTableProps) {
                   <td className="whitespace-nowrap px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/plan/${row.id}`}
+                        href={{
+                          pathname: `/plan/${row.id}`,
+                          query: googleUid ? { google_uid: googleUid } : undefined,
+                        }}
                         className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500"
                       >
                         View
                       </Link>
                       <button
                         type="button"
-                        onClick={() =>
-                          setMessage(
-                            `Delete action for ${row.planName} is UI only. Connect this button to your API delete endpoint.`
-                          )
-                        }
+                        onClick={() => {
+                          void handleDeletePlan(row.id, row.planName);
+                        }}
+                        disabled={deletingPlanId === row.id}
                         className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500"
                       >
-                        Delete
+                        {deletingPlanId === row.id ? "Deleting..." : "Delete"}
                       </button>
                     </div>
                   </td>

@@ -47,6 +47,12 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
         catalog_year_id
     )
 
+    course_to_major_requirement_map = debug_step(
+        "build_course_to_major_requirement_map",
+        build_course_to_major_requirement_map,
+        major_requirements_by_id
+    )
+
     major_progress = debug_step(
         "initialize_major_progress",
         initialize_major_progress,
@@ -82,6 +88,19 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
         ge_progress
     )
 
+    all_course_ids = debug_step(
+        "collect_all_relevant_course_ids",
+        collect_all_relevant_course_ids,
+        major_requirements_by_id,
+        ge_courses_by_requirement
+    )
+
+    prerequisite_data_by_course = debug_step(
+        "get_prerequisite_data_for_courses",
+        get_prerequisite_data_for_courses,
+        all_course_ids
+    )
+
     semester_sequence = debug_step(
         "build_semester_sequence",
         build_semester_sequence,
@@ -113,6 +132,8 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
             completed_course_ids=completed_course_ids,
             major_requirements_by_id=major_requirements_by_id,
             major_progress=major_progress,
+            prerequisite_data_by_course=prerequisite_data_by_course,
+            course_to_major_requirement_map=course_to_major_requirement_map,
         )
 
         current_units = debug_step(
@@ -126,6 +147,7 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
             ge_requirements=ge_requirements,
             ge_courses_by_requirement=ge_courses_by_requirement,
             ge_progress=ge_progress,
+            prerequisite_data_by_course=prerequisite_data_by_course,
         )
 
         current_units = debug_step(
@@ -138,6 +160,8 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
             completed_course_ids=completed_course_ids,
             major_requirements_by_id=major_requirements_by_id,
             major_progress=major_progress,
+            prerequisite_data_by_course=prerequisite_data_by_course,
+            course_to_major_requirement_map=course_to_major_requirement_map,
         )
 
         if semester_courses:
@@ -162,6 +186,20 @@ def generate_plan_for_user(user_id, major_id, catalog_year_id, starting_term, st
 
     if not semesters_output:
         raise ValueError("No eligible courses could be generated for this user.")
+
+    print("\n[PLAN DEBUG] FINAL MAJOR PROGRESS")
+    for req_id, progress in major_progress.items():
+        print(
+            f"  {req_id} | {progress['requirement_name']} | "
+            f"{progress['completed_units']} / {progress['required_units_max']}"
+        )
+
+    print("\n[PLAN DEBUG] FINAL GE PROGRESS")
+    for req_id, progress in ge_progress.items():
+        print(
+            f"  {req_id} | GE {progress['area_code']} | "
+            f"{progress['completed_units']} / {progress['required_units_max']}"
+        )
 
     plan_name = debug_step("build_default_plan_name", build_default_plan_name, user_id)
 
@@ -270,6 +308,22 @@ def get_major_requirement_courses(major_id, catalog_year_id):
     return grouped
 
 
+def build_course_to_major_requirement_map(major_requirements_by_id):
+    course_to_requirements = defaultdict(list)
+
+    for req_id, requirement in major_requirements_by_id.items():
+        for course in requirement["courses"]:
+            course_to_requirements[course["course_id"]].append({
+                "major_requirement_id": req_id,
+                "requirement_name": requirement["requirement_name"],
+                "requirement_type": requirement["requirement_type"],
+                "required_units_max": requirement["required_units_max"],
+                "choice_group": course["choice_group"],
+            })
+
+    return dict(course_to_requirements)
+
+
 def initialize_major_progress(major_requirements_by_id, completed_course_ids):
     progress = {}
 
@@ -363,6 +417,78 @@ def apply_completed_courses_to_ge_progress(completed_course_ids, ge_courses_by_r
                 ge_progress[requirement_id]["completed_units"] += get_course_units(course)
 
 
+def collect_all_relevant_course_ids(major_requirements_by_id, ge_courses_by_requirement):
+    course_ids = set()
+
+    for requirement in major_requirements_by_id.values():
+        for course in requirement["courses"]:
+            course_ids.add(course["course_id"])
+
+    for courses in ge_courses_by_requirement.values():
+        for course in courses:
+            course_ids.add(course["course_id"])
+
+    return course_ids
+
+
+def get_prerequisite_data_for_courses(course_ids):
+    if not course_ids:
+        return {}
+
+    placeholders = ",".join(["%s"] * len(course_ids))
+
+    rows = query_db(
+        f"""
+        SELECT
+            cr.course_id,
+            cr.requirement_type,
+            cr.note AS requirement_note,
+            cri.group_number,
+            cri.item_type,
+            cri.required_course_id,
+            cri.exam_name,
+            cri.item_text,
+            c.course_code AS required_course_code,
+            c.course_name AS required_course_name,
+            c.units_min AS required_course_units_min,
+            c.units_max AS required_course_units_max
+        FROM course_requirements cr
+        JOIN course_requirement_items cri
+            ON cri.course_requirement_id = cr.id
+        LEFT JOIN courses c
+            ON cri.required_course_id = c.id
+        WHERE cr.course_id IN ({placeholders})
+        ORDER BY cr.course_id, cr.requirement_type, cri.group_number, cri.id
+        """,
+        tuple(course_ids),
+    ) or []
+
+    result = defaultdict(lambda: {
+        "prerequisite": defaultdict(list),
+        "corequisite": defaultdict(list),
+        "restriction": defaultdict(list),
+    })
+
+    for row in rows:
+        requirement_type = row["requirement_type"]
+        if requirement_type not in {"prerequisite", "corequisite", "restriction"}:
+            continue
+
+        result[row["course_id"]][requirement_type][row["group_number"]].append({
+            "item_type": row["item_type"],
+            "required_course_id": row["required_course_id"],
+            "required_course_code": row["required_course_code"],
+            "required_course_name": row["required_course_name"],
+            "required_course_units_min": row["required_course_units_min"],
+            "required_course_units_max": row["required_course_units_max"],
+            "exam_name": row["exam_name"],
+            "item_text": row["item_text"],
+            "requirement_note": row["requirement_note"],
+        })
+
+    return result
+
+
 def build_semester_sequence(starting_term, starting_year, available_winter, available_summer, max_terms):
     base_order = ["Winter", "Spring", "Summer", "Fall"]
 
@@ -404,6 +530,8 @@ def fill_semester_with_major_courses(
     completed_course_ids,
     major_requirements_by_id,
     major_progress,
+    prerequisite_data_by_course,
+    course_to_major_requirement_map,
 ):
     for req_id, requirement in major_requirements_by_id.items():
         if current_units >= target_major_units:
@@ -418,6 +546,9 @@ def fill_semester_with_major_courses(
             semester_courses=semester_courses,
             selected_course_ids=selected_course_ids,
             completed_course_ids=completed_course_ids,
+            prerequisite_data_by_course=prerequisite_data_by_course,
+            course_to_major_requirement_map=course_to_major_requirement_map,
+            major_progress=major_progress,
         )
 
     return current_units
@@ -431,6 +562,8 @@ def fill_remaining_with_major_courses(
     completed_course_ids,
     major_requirements_by_id,
     major_progress,
+    prerequisite_data_by_course,
+    course_to_major_requirement_map,
 ):
     for req_id, requirement in major_requirements_by_id.items():
         if current_units >= max_units:
@@ -445,6 +578,9 @@ def fill_remaining_with_major_courses(
             semester_courses=semester_courses,
             selected_course_ids=selected_course_ids,
             completed_course_ids=completed_course_ids,
+            prerequisite_data_by_course=prerequisite_data_by_course,
+            course_to_major_requirement_map=course_to_major_requirement_map,
+            major_progress=major_progress,
         )
 
     return current_units
@@ -459,6 +595,9 @@ def try_fill_major_requirement(
     semester_courses,
     selected_course_ids,
     completed_course_ids,
+    prerequisite_data_by_course,
+    course_to_major_requirement_map,
+    major_progress,
 ):
     required_units_max = progress["required_units_max"]
 
@@ -473,25 +612,18 @@ def try_fill_major_requirement(
         if current_units >= target_major_units:
             return current_units
 
-        if not is_course_eligible(
-            course,
-            current_units,
-            max_units,
-            selected_course_ids,
-            completed_course_ids,
-        ):
-            continue
-
-        add_course_to_semester(
-            semester_courses,
-            course,
-            selected_course_ids,
-            applied_to=requirement["requirement_name"]
+        current_units = try_add_major_course_or_prerequisite(
+            course=course,
+            current_units=current_units,
+            max_units=max_units,
+            target_major_units=target_major_units,
+            semester_courses=semester_courses,
+            selected_course_ids=selected_course_ids,
+            completed_course_ids=completed_course_ids,
+            prerequisite_data_by_course=prerequisite_data_by_course,
+            course_to_major_requirement_map=course_to_major_requirement_map,
+            major_progress=major_progress,
         )
-        units = get_course_units(course)
-        current_units += units
-        progress["completed_units"] += units
-        progress["selected_course_ids"].add(course["course_id"])
 
         if required_units_max > 0 and progress["completed_units"] >= required_units_max:
             return current_units
@@ -499,30 +631,30 @@ def try_fill_major_requirement(
     # choice_group = 1 -> choose one
     if not progress["choice_group_1_satisfied"]:
         one_choice_courses = [c for c in courses if c["choice_group"] == 1]
-        eligible_one_choice = [
-            c for c in one_choice_courses
-            if is_course_eligible(
-                c,
-                current_units,
-                max_units,
-                selected_course_ids,
-                completed_course_ids,
-            )
-        ]
 
-        if eligible_one_choice and current_units < target_major_units:
-            chosen = random.choice(eligible_one_choice)
-            add_course_to_semester(
-                semester_courses,
-                chosen,
-                selected_course_ids,
-                applied_to=requirement["requirement_name"]
+        for candidate in one_choice_courses:
+            if current_units >= target_major_units:
+                break
+
+            before_ids = set(progress["selected_course_ids"])
+            before_units = progress["completed_units"]
+
+            current_units = try_add_major_course_or_prerequisite(
+                course=candidate,
+                current_units=current_units,
+                max_units=max_units,
+                target_major_units=target_major_units,
+                semester_courses=semester_courses,
+                selected_course_ids=selected_course_ids,
+                completed_course_ids=completed_course_ids,
+                prerequisite_data_by_course=prerequisite_data_by_course,
+                course_to_major_requirement_map=course_to_major_requirement_map,
+                major_progress=major_progress,
             )
-            units = get_course_units(chosen)
-            current_units += units
-            progress["completed_units"] += units
-            progress["selected_course_ids"].add(chosen["course_id"])
-            progress["choice_group_1_satisfied"] = True
+
+            if progress["selected_course_ids"] != before_ids or progress["completed_units"] != before_units:
+                progress["choice_group_1_satisfied"] = True
+                break
 
             if required_units_max > 0 and progress["completed_units"] >= required_units_max:
                 return current_units
@@ -530,48 +662,271 @@ def try_fill_major_requirement(
     # choice_group = 99 -> keep selecting until required_units_max is hit
     repeatable_courses = [c for c in courses if c["choice_group"] == 99]
 
+    safety_counter = 0
     while (
         repeatable_courses
         and current_units < target_major_units
         and (required_units_max == 0 or progress["completed_units"] < required_units_max)
     ):
-        eligible_repeatable = [
-            c for c in repeatable_courses
-            if is_course_eligible(
-                c,
-                current_units,
-                max_units,
-                selected_course_ids,
-                completed_course_ids,
-            )
-        ]
+        safety_counter += 1
+        if safety_counter > 100:
+            raise RuntimeError(f"choice_group 99 loop exceeded safety limit for {requirement['requirement_name']}")
 
-        if not eligible_repeatable:
-            break
+        candidate = random.choice(repeatable_courses)
 
-        fitting_repeatable = eligible_repeatable
-        if required_units_max > 0:
-            fitting_repeatable = [
-                c for c in eligible_repeatable
-                if progress["completed_units"] + get_course_units(c) <= required_units_max
-            ]
+        before_ids = set(progress["selected_course_ids"])
+        before_units = progress["completed_units"]
+        before_semester_count = len(semester_courses)
 
-        if not fitting_repeatable:
-            break
-
-        chosen = random.choice(fitting_repeatable)
-        units = get_course_units(chosen)
-
-        add_course_to_semester(
-            semester_courses,
-            chosen,
-            selected_course_ids,
-            applied_to=requirement["requirement_name"]
+        current_units = try_add_major_course_or_prerequisite(
+            course=candidate,
+            current_units=current_units,
+            max_units=max_units,
+            target_major_units=target_major_units,
+            semester_courses=semester_courses,
+            selected_course_ids=selected_course_ids,
+            completed_course_ids=completed_course_ids,
+            prerequisite_data_by_course=prerequisite_data_by_course,
+            course_to_major_requirement_map=course_to_major_requirement_map,
+            major_progress=major_progress,
         )
-        current_units += units
-        progress["completed_units"] += units
-        progress["selected_course_ids"].add(chosen["course_id"])
 
+        # If nothing changed, remove this candidate from the repeatable pool for this pass
+        if (
+            progress["selected_course_ids"] == before_ids
+            and progress["completed_units"] == before_units
+            and len(semester_courses) == before_semester_count
+        ):
+            repeatable_courses = [c for c in repeatable_courses if c["course_id"] != candidate["course_id"]]
+
+        if required_units_max > 0 and progress["completed_units"] >= required_units_max:
+            return current_units
+
+    return current_units
+
+
+def try_add_major_course_or_prerequisite(
+    course,
+    current_units,
+    max_units,
+    target_major_units,
+    semester_courses,
+    selected_course_ids,
+    completed_course_ids,
+    prerequisite_data_by_course,
+    course_to_major_requirement_map,
+    major_progress,
+):
+    if current_units >= target_major_units:
+        return current_units
+
+    if is_course_eligible(
+        course=course,
+        current_units=current_units,
+        max_units=max_units,
+        selected_course_ids=selected_course_ids,
+        completed_course_ids=completed_course_ids,
+        prerequisite_data_by_course=prerequisite_data_by_course,
+    ):
+        return add_major_course_to_semester(
+            course=course,
+            current_units=current_units,
+            semester_courses=semester_courses,
+            selected_course_ids=selected_course_ids,
+            course_to_major_requirement_map=course_to_major_requirement_map,
+            major_progress=major_progress,
+        )
+
+    prerequisite_course = resolve_deepest_unmet_major_prerequisite(
+        target_course=course,
+        completed_course_ids=completed_course_ids,
+        selected_course_ids=selected_course_ids,
+        prerequisite_data_by_course=prerequisite_data_by_course,
+        visited=None,
+    )
+
+    if not prerequisite_course:
+        return current_units
+
+    if is_course_eligible(
+        course=prerequisite_course,
+        current_units=current_units,
+        max_units=max_units,
+        selected_course_ids=selected_course_ids,
+        completed_course_ids=completed_course_ids,
+        prerequisite_data_by_course=prerequisite_data_by_course,
+    ):
+        print(
+            f"[PLAN DEBUG] Adding prerequisite {prerequisite_course['course_code']} "
+            f"before target {course['course_code']}"
+        )
+        return add_major_course_to_semester(
+            course=prerequisite_course,
+            current_units=current_units,
+            semester_courses=semester_courses,
+            selected_course_ids=selected_course_ids,
+            course_to_major_requirement_map=course_to_major_requirement_map,
+            major_progress=major_progress,
+        )
+
+    return current_units
+
+
+def resolve_deepest_unmet_major_prerequisite(
+    target_course,
+    completed_course_ids,
+    selected_course_ids,
+    prerequisite_data_by_course,
+    visited=None,
+):
+    if visited is None:
+        visited = set()
+
+    course_id = target_course["course_id"]
+
+    if course_id in visited:
+        print(f"[PLAN DEBUG] Prerequisite cycle detected at course_id={course_id}")
+        return None
+
+    visited.add(course_id)
+
+    prerequisite_groups = prerequisite_data_by_course.get(course_id, {}).get("prerequisite", {})
+
+    if not prerequisite_groups:
+        return None
+
+    for group_number in sorted(prerequisite_groups.keys()):
+        group_items = prerequisite_groups[group_number]
+
+        # If any item in the group is already satisfied, this group is satisfied
+        if is_prerequisite_group_satisfied(group_items, completed_course_ids, selected_course_ids):
+            continue
+
+        course_items = [item for item in group_items if item["item_type"] == "course" and item["required_course_id"]]
+        exam_items = [item for item in group_items if item["item_type"] == "exam"]
+        text_items = [item for item in group_items if item["item_type"] == "text"]
+
+        # for item in exam_items:
+        #     print(
+        #         f"[PLAN DEBUG] Exam prerequisite logged but not enforced for course_id={course_id}: "
+        #         f"{item['exam_name']}"
+        #     )
+
+        # for item in text_items:
+        #     print(
+        #         f"[PLAN DEBUG] Text prerequisite logged but not enforced for course_id={course_id}: "
+        #         f"{item['item_text']}"
+        #     )
+
+        if not course_items:
+            return None
+
+        # Deterministic choice for now: first course option in the OR group
+        chosen_item = course_items[0]
+        prereq_course = {
+            "course_id": chosen_item["required_course_id"],
+            "course_code": chosen_item["required_course_code"],
+            "course_name": chosen_item["required_course_name"],
+            "units_min": chosen_item["required_course_units_min"],
+            "units_max": chosen_item["required_course_units_max"],
+        }
+
+        deeper = resolve_deepest_unmet_major_prerequisite(
+            target_course=prereq_course,
+            completed_course_ids=completed_course_ids,
+            selected_course_ids=selected_course_ids,
+            prerequisite_data_by_course=prerequisite_data_by_course,
+            visited=visited,
+        )
+
+        if deeper:
+            return deeper
+
+        if prereq_course["course_id"] not in completed_course_ids and prereq_course["course_id"] not in selected_course_ids:
+            return prereq_course
+
+    return None
+
+
+def is_prerequisite_group_satisfied(group_items, completed_course_ids, selected_course_ids):
+    for item in group_items:
+        if item["item_type"] == "course" and item["required_course_id"]:
+            if item["required_course_id"] in completed_course_ids or item["required_course_id"] in selected_course_ids:
+                return True
+        # elif item["item_type"] == "exam":
+        #     print(f"[PLAN DEBUG] Exam prerequisite encountered but not enforced: {item['exam_name']}")
+        # elif item["item_type"] == "text":
+        #     print(f"[PLAN DEBUG] Text prerequisite encountered but not enforced: {item['item_text']}")
+
+    return False
+
+
+def resolve_major_requirement_for_course(course_id, course_to_major_requirement_map, major_progress):
+    options = course_to_major_requirement_map.get(course_id, [])
+
+    if not options:
+        return None
+
+    best_option = None
+    best_remaining_units = -1
+
+    for option in options:
+        req_id = option["major_requirement_id"]
+        progress = major_progress[req_id]
+        remaining_units = progress["required_units_max"] - progress["completed_units"]
+
+        if remaining_units > 0 and remaining_units > best_remaining_units:
+            best_option = option
+            best_remaining_units = remaining_units
+
+    if best_option:
+        return best_option
+
+    return options[0]
+
+
+def add_major_course_to_semester(
+    course,
+    current_units,
+    semester_courses,
+    selected_course_ids,
+    course_to_major_requirement_map,
+    major_progress,
+):
+    resolved_requirement = resolve_major_requirement_for_course(
+        course_id=course["course_id"],
+        course_to_major_requirement_map=course_to_major_requirement_map,
+        major_progress=major_progress,
+    )
+
+    if resolved_requirement is None:
+        applied_to = "Prerequisite Support"
+        print(
+            f"[PLAN DEBUG] No major requirement mapping found for {course['course_code']}. "
+            f"Using applied_to='{applied_to}'"
+        )
+    else:
+        req_id = resolved_requirement["major_requirement_id"]
+        applied_to = resolved_requirement["requirement_name"]
+
+        major_progress[req_id]["completed_units"] += get_course_units(course)
+        major_progress[req_id]["selected_course_ids"].add(course["course_id"])
+
+        if resolved_requirement["choice_group"] == 1:
+            major_progress[req_id]["choice_group_1_satisfied"] = True
+
+        print(
+            f"[PLAN DEBUG] Counting {course['course_code']} toward '{applied_to}'"
+        )
+
+    add_course_to_semester(
+        semester_courses,
+        course,
+        selected_course_ids,
+        applied_to=applied_to
+    )
+
+    current_units += get_course_units(course)
     return current_units
 
 
@@ -584,6 +939,7 @@ def fill_semester_with_ge_courses(
     ge_requirements,
     ge_courses_by_requirement,
     ge_progress,
+    prerequisite_data_by_course,
 ):
     while current_units < max_units:
         valid_options = []
@@ -591,21 +947,20 @@ def fill_semester_with_ge_courses(
         for req in ge_requirements:
             requirement_id = req["id"]
 
-            # Skip already satisfied GE requirements
             if ge_progress[requirement_id]["completed_units"] >= ge_progress[requirement_id]["required_units_max"]:
                 continue
 
             for course in ge_courses_by_requirement.get(requirement_id, []):
                 if not is_course_eligible(
-                    course,
-                    current_units,
-                    max_units,
-                    selected_course_ids,
-                    completed_course_ids,
+                    course=course,
+                    current_units=current_units,
+                    max_units=max_units,
+                    selected_course_ids=selected_course_ids,
+                    completed_course_ids=completed_course_ids,
+                    prerequisite_data_by_course=prerequisite_data_by_course,
                 ):
                     continue
 
-                # Do not overshoot the GE unit cap for that requirement
                 if (
                     ge_progress[requirement_id]["completed_units"] + get_course_units(course)
                     > ge_progress[requirement_id]["required_units_max"]
@@ -614,7 +969,6 @@ def fill_semester_with_ge_courses(
 
                 valid_options.append((requirement_id, course))
 
-        # If nothing valid can be added, stop the GE fill loop
         if not valid_options:
             break
 
@@ -638,7 +992,41 @@ def get_course_units(course):
     return float(course["units_max"])
 
 
-def is_course_eligible(course, current_units, max_units, selected_course_ids, completed_course_ids):
+def course_prerequisites_satisfied(course_id, completed_course_ids, selected_course_ids, prerequisite_data_by_course):
+    prerequisite_groups = prerequisite_data_by_course.get(course_id, {}).get("prerequisite", {})
+
+    if not prerequisite_groups:
+        return True
+
+    for group_number in sorted(prerequisite_groups.keys()):
+        group_items = prerequisite_groups[group_number]
+
+        if not is_prerequisite_group_satisfied(group_items, completed_course_ids, selected_course_ids):
+            return False
+
+    return True
+
+
+# def log_non_prerequisite_requirements(course_id, prerequisite_data_by_course):
+#     course_data = prerequisite_data_by_course.get(course_id, {})
+
+#     for group_items in course_data.get("corequisite", {}).values():
+#         for item in group_items:
+#             print(f"[PLAN DEBUG] Corequisite logged but not enforced for course_id={course_id}: {item}")
+
+#     for group_items in course_data.get("restriction", {}).values():
+#         for item in group_items:
+#             print(f"[PLAN DEBUG] Restriction logged but not enforced for course_id={course_id}: {item}")
+
+
+def is_course_eligible(
+    course,
+    current_units,
+    max_units,
+    selected_course_ids,
+    completed_course_ids,
+    prerequisite_data_by_course,
+):
     course_id = course["course_id"]
     units = get_course_units(course)
 
@@ -649,6 +1037,16 @@ def is_course_eligible(course, current_units, max_units, selected_course_ids, co
         return False
 
     if current_units + units > max_units:
+        return False
+
+    # log_non_prerequisite_requirements(course_id, prerequisite_data_by_course)
+
+    if not course_prerequisites_satisfied(
+        course_id=course_id,
+        completed_course_ids=completed_course_ids,
+        selected_course_ids=selected_course_ids,
+        prerequisite_data_by_course=prerequisite_data_by_course,
+    ):
         return False
 
     return True
@@ -748,13 +1146,13 @@ def save_generated_plan(user_id, major_id, catalog_year_id, plan_name, semesters
 # if __name__ == "__main__":
 #     try:
 #         print("\n=== RUNNING PLAN GENERATOR TEST ===\n")
-
+#
 #         TEST_USER_ID = 1
 #         TEST_MAJOR_ID = 1
 #         TEST_CATALOG_YEAR_ID = 1
 #         TEST_START_TERM = "Fall"
-#         TEST_START_YEAR = 2026
-
+#         TEST_START_YEAR = 2025
+#
 #         result = generate_plan_for_user(
 #             user_id=TEST_USER_ID,
 #             major_id=TEST_MAJOR_ID,
@@ -762,10 +1160,10 @@ def save_generated_plan(user_id, major_id, catalog_year_id, plan_name, semesters
 #             starting_term=TEST_START_TERM,
 #             starting_year=TEST_START_YEAR,
 #         )
-
+#
 #         print("\n=== GENERATED PLAN SUCCESS ===\n")
 #         print(result)
-
+#
 #     except Exception as e:
 #         print("\n=== PLAN GENERATION FAILED ===\n")
 #         print(e)

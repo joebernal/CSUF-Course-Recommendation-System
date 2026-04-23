@@ -120,6 +120,8 @@ def generate_plan():
 @plan_bp.route("/<int:plan_id>", methods=["GET"])
 def get_plan_details(plan_id):
     try:
+        google_uid = (request.args.get("google_uid") or "").strip()
+
         plan = query_db(
             """
             SELECT
@@ -147,12 +149,30 @@ def get_plan_details(plan_id):
         if not plan:
             return jsonify({"error": "Plan not found"}), 404
 
+        completed_course_ids = set()
+        if google_uid:
+            user = query_db(
+                "SELECT id FROM users WHERE google_uid = %s",
+                (google_uid,),
+                one=True,
+            )
+
+            if user:
+                completed_rows = query_db(
+                    "SELECT course_id FROM completed_courses WHERE user_id = %s",
+                    (user["id"],),
+                ) or []
+                completed_course_ids = {
+                    int(row["course_id"]) for row in completed_rows
+                }
+
         courses = query_db(
             """
             SELECT
                 pc.term,
                 pc.year,
                 pc.applied_to,
+                pc.course_id,
                 c.course_code,
                 c.course_name,
                 c.units_max
@@ -179,7 +199,7 @@ def get_plan_details(plan_id):
                 "code": row["course_code"],
                 "title": row["course_name"],
                 "units": float(row["units_max"]),
-                "isCompleted": False,
+                "isCompleted": int(row["course_id"]) in completed_course_ids,
                 "appliedTo": row["applied_to"],
             })
 
@@ -274,4 +294,55 @@ def get_catalogs():
         return jsonify(catalogs), 200
     except Exception as e:
         print("GET CATALOGS ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+    
+def _delete_plan_for_user(plan_id, google_uid):
+    if not google_uid:
+        return jsonify({"error": "google_uid is required"}), 400
+
+    user = query_db(
+        "SELECT id FROM users WHERE google_uid = %s",
+        (google_uid,),
+        one=True,
+    )
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    plan = query_db(
+        "SELECT id FROM course_plans WHERE id = %s AND user_id = %s",
+        (plan_id, user["id"]),
+        one=True,
+    )
+
+    if not plan:
+        return jsonify({"error": "Plan not found or does not belong to user"}), 404
+
+    query_db(
+        "DELETE FROM course_plans WHERE id = %s",
+        (plan_id,)
+    )
+
+    return jsonify({"message": "Plan deleted successfully."}), 200
+
+
+@plan_bp.route("/<int:plan_id>", methods=["DELETE"])
+def delete_plan_rest(plan_id):
+    try:
+        google_uid = (request.args.get("google_uid") or "").strip()
+        return _delete_plan_for_user(plan_id, google_uid)
+
+    except Exception as e:
+        print("DELETE PLAN ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@plan_bp.route("/delete/<plan_id>", methods=["GET"])
+def delete_plan(plan_id):
+    try:
+        google_uid = (request.args.get("google_uid") or "").strip()
+        return _delete_plan_for_user(plan_id, google_uid)
+
+    except Exception as e:
+        print("DELETE PLAN ERROR:", e)
         return jsonify({"error": str(e)}), 500

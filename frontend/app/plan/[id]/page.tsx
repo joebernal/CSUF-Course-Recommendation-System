@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Footer from "@/app/components/Footer";
 import Navbar from "@/app/components/Navbar";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
+import GraduationTimeline from "@/app/components/GraduationTimeline";
 import SemesterCoursesTable, {
   type PlanCourse,
 } from "@/app/components/SemesterCoursesTable";
@@ -23,19 +24,16 @@ type PlanDetails = {
   semesters: SemesterPlan[];
 };
 
-type DegreeRequirement = {
-  requirementName: string;
-  requiredUnitsMin: number | null;
-  note: string | null;
-};
-
-type DegreeRequirementsResponse = {
-  requirements: DegreeRequirement[];
-};
-
-async function getPlanDetails(id: string): Promise<PlanDetails | null> {
+async function getPlanDetails(
+  id: string,
+  googleUid?: string,
+): Promise<PlanDetails | null> {
   try {
-    const response = await fetch(`http://localhost:3000/api/plans/${id}`, {
+    const query = googleUid
+      ? `?google_uid=${encodeURIComponent(googleUid)}`
+      : "";
+
+    const response = await fetch(`http://localhost:3000/api/plans/${id}${query}`, {
       cache: "no-store",
     });
 
@@ -80,10 +78,14 @@ async function getDegreeRequirements(id: string): Promise<DegreeRequirement[]> {
 
 export default async function PlanDetailsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ google_uid?: string }>;
 }) {
   const { id } = await params;
+  const { google_uid: googleUid } = await searchParams;
+  const details = await getPlanDetails(id, googleUid);
 
   const details = await getPlanDetails(id);
   if (!details) {
@@ -177,7 +179,21 @@ export default async function PlanDetailsPage({
                 </article>
               </div>
             </section>
-
+            <GraduationTimeline
+                courses={details.semesters.flatMap((s) =>
+                  s.courses.map((c) => ({
+                    term: s.semester.split(" ")[0],
+                    year: parseInt(s.semester.split(" ")[1]),
+                    course_code: c.code,
+                    course_name: c.title,
+                    units_max: c.units,
+                    isCompleted: c.isCompleted,
+                  }))
+                )}
+                totalUnitsRequired={totalUnits}
+                majorName={details.major}
+                catalogYear={details.catalogYear}
+              />
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-slate-900">
@@ -207,7 +223,6 @@ export default async function PlanDetailsPage({
 
                     <SemesterCoursesTable
                       planId={details.id}
-                      semester={semester.semester}
                       courses={semester.courses}
                     />
                   </article>

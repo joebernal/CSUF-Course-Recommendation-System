@@ -2,15 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 const backendBaseUrl = process.env.API_BASE_URL ?? "http://127.0.0.1:5001";
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest) {
   try {
-    const { id } = await context.params;
     const googleUid = request.nextUrl.searchParams.get("google_uid") ?? "";
-
-    const upstreamUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/plans/${id}?google_uid=${encodeURIComponent(googleUid)}`;
+    const upstreamUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/courses/completed?google_uid=${encodeURIComponent(googleUid)}`;
 
     const response = await fetch(upstreamUrl, {
       method: "GET",
@@ -30,26 +25,25 @@ export async function GET(
 
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Error fetching plan details:", error);
+    console.error("Error getting completed courses:", error);
     return NextResponse.json(
-      { error: "Failed to fetch plan details." },
+      { error: "Failed to get completed courses." },
       { status: 500 },
     );
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest) {
   try {
-    const { id } = await context.params;
-    const googleUid = request.nextUrl.searchParams.get("google_uid") ?? "";
-
-    const upstreamUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/plans/${id}?google_uid=${encodeURIComponent(googleUid)}`;
+    const body = await request.json();
+    const upstreamUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/courses/completed`;
 
     const response = await fetch(upstreamUrl, {
-      method: "DELETE",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
       cache: "no-store",
     });
 
@@ -66,9 +60,9 @@ export async function DELETE(
 
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Error deleting plan:", error);
+    console.error("Error adding completed course:", error);
     return NextResponse.json(
-      { error: "Failed to delete plan." },
+      { error: "Failed to add completed course." },
       { status: 500 },
     );
   }

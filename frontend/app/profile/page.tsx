@@ -14,7 +14,7 @@ export default function ProfilePage() {
             <p className="text-xs uppercase tracking-[0.18em] text-cyan-700">Account</p>
             <h1 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Profile Settings</h1>
             <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-              Update your personal preferences. API integration for saving will be added later.
+              Update your personal course preferences and account information.
             </p>
 
             <div className="mt-8">
