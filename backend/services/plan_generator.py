@@ -17,6 +17,55 @@ LANGUAGE_COURSE_MAP = {
     "Swift": "CPSC 223W",
 }
 
+CAREER_INTEREST_COURSE_PRIORITY = {
+    "Web Development": [
+        "CPSC 349",
+        "CPSC 449",
+        "CPSC 431",
+        "CPSC 455",
+        "CPSC 462",
+        "CPSC 463",
+        "CPSC 464",
+    ],
+    "Artificial Intelligence": [
+        "CPSC 254",
+        "CPSC 483",
+        "CPSC 375",
+        "MATH 335",
+        "MATH 340",
+    ],
+    "Security": [
+        "CPSC 352",
+        "CPSC 454",
+        "CPSC 455",
+        "CPSC 456",
+        "CPSC 458",
+        "CPSC 459",
+    ],
+    "Data Science": [
+        "CPSC 375",
+        "CPSC 483",
+        "MATH 335",
+        "MATH 340",
+        "MATH 370",
+        "CPSC 431",
+    ],
+    "Systems": [
+        "CPSC 440",
+        "CPSC 474",
+        "CPSC 479",
+        "CPSC 454",
+        "CPSC 456",
+    ],
+    "Game Development": [
+        "CPSC 386",
+        "CPSC 486",
+        "CPSC 484",
+        "CPSC 474",
+        "CPSC 479",
+    ],
+}
+
 
 def debug_step(step_name, fn, *args, **kwargs):
     try:
@@ -663,6 +712,26 @@ def sort_choice_group_courses_by_preferences(courses, user_preferences):
     return sorted_courses
 
 
+def choose_elective_candidate(repeatable_courses, user_preferences):
+    career_interest = user_preferences.get("career_interest")
+
+    if not career_interest or career_interest == "Undecided":
+        return random.choice(repeatable_courses)
+
+    priority_list = CAREER_INTEREST_COURSE_PRIORITY.get(career_interest, [])
+
+    for course_code in priority_list:
+        for course in repeatable_courses:
+            if course["course_code"] == course_code:
+                print(
+                    f"[PLAN DEBUG] Career interest '{career_interest}' prioritized "
+                    f"{course_code}"
+                )
+                return course
+
+    return random.choice(repeatable_courses)
+
+
 def try_fill_major_requirement(
     requirement,
     progress,
@@ -754,7 +823,10 @@ def try_fill_major_requirement(
         if safety_counter > 100:
             raise RuntimeError(f"choice_group 99 loop exceeded safety limit for {requirement['requirement_name']}")
 
-        candidate = random.choice(repeatable_courses)
+        if requirement["requirement_name"] == "Computer Science Electives":
+            candidate = choose_elective_candidate(repeatable_courses, user_preferences)
+        else:
+            candidate = random.choice(repeatable_courses)
 
         before_ids = set(progress["selected_course_ids"])
         before_units = progress["completed_units"]
