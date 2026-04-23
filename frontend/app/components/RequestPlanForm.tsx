@@ -150,6 +150,8 @@ export default function RequestPlanForm() {
 
   const [startSeason, setStartSeason] = useState("Spring");
   const [startYear, setStartYear] = useState("2026");
+  const [availableWinter, setAvailableWinter] = useState(false);
+  const [availableSummer, setAvailableSummer] = useState(false);
 
   const [onboardingDefaultsMessage, setOnboardingDefaultsMessage] =
     useState("");
@@ -178,6 +180,9 @@ export default function RequestPlanForm() {
         : "parttime",
     );
 
+    setAvailableWinter(onboardingPreferences.takeWinterCourses);
+    setAvailableSummer(onboardingPreferences.takeSummerCourses);
+
     if (
       onboardingPreferences.takeWinterCourses &&
       !onboardingPreferences.takeSummerCourses
@@ -200,19 +205,7 @@ export default function RequestPlanForm() {
             ? "summer"
             : null;
 
-    setOnboardingDefaultsMessage(
-      seasonalPreference
-        ? `Defaults applied from onboarding: ${
-            onboardingPreferences.enrollmentLoad === "full_time"
-              ? "full-time"
-              : "part-time"
-          } and ${seasonalPreference} availability.`
-        : `Defaults applied from onboarding: ${
-            onboardingPreferences.enrollmentLoad === "full_time"
-              ? "full-time"
-              : "part-time"
-          } enrollment.`,
-    );
+    
   }, []);
 
   useEffect(() => {
@@ -370,6 +363,8 @@ export default function RequestPlanForm() {
       catalog_year_id: Number.parseInt(catalogYearId, 10),
       starting_term: startSeason,
       starting_year: Number.parseInt(startYear, 10),
+      available_winter: availableWinter,
+      available_summer: availableSummer,
     };
 
     try {
@@ -484,6 +479,33 @@ export default function RequestPlanForm() {
             {onboardingDefaultsMessage}
           </p>
         ) : null}
+      </fieldset>
+        <fieldset>
+        <legend className="mb-2 block text-sm font-medium text-slate-700">
+          Semester Availability
+        </legend>
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <label className="flex items-center gap-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              name="available_winter"
+              checked={availableWinter}
+              onChange={(event) => setAvailableWinter(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+            />
+            Available in Winter
+          </label>
+          <label className="flex items-center gap-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              name="available_summer"
+              checked={availableSummer}
+              onChange={(event) => setAvailableSummer(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+            />
+            Available in Summer
+          </label>
+        </div>
       </fieldset>
 
       <div>
