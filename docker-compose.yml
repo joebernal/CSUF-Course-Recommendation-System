@@ -11,13 +11,7 @@ services:
       - "3310:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./backend/sql/0001_schema.sql:/docker-entrypoint-initdb.d/0001_schema.sql:ro
-      - ./backend/sql/0002_insert_2025_catalog_courses.sql:/docker-entrypoint-initdb.d/0002_insert_2025_catalog_courses.sql:ro
-      - ./backend/sql/0003_insert_major_courses.sql:/docker-entrypoint-initdb.d/0003_insert_major_courses.sql:ro
-      - ./backend/sql/0004_insert_course_requirements.sql:/docker-entrypoint-initdb.d/0004_insert_course_requirements.sql:ro
-      - ./backend/sql/0005_insert_ge_areas.sql:/docker-entrypoint-initdb.d/0005_insert_ge_areas.sql:ro
-      - ./backend/sql/0006_insert_missing_ge_courses.sql:/docker-entrypoint-initdb.d/0006_insert_missing_ge_courses.sql:ro
-      - ./backend/sql/0007_insert_cs_major_ge_requirements_and_courses.sql:/docker-entrypoint-initdb.d/0007_insert_cs_major_ge_requirements_and_courses.sql:ro
+      - ./backend/sql/FinalTuffyPlanDatabase.sql:/docker-entrypoint-initdb.d/FinalTuffyPlanDatabase.sql:ro
     healthcheck:
       test:
         [
