@@ -8,7 +8,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-tuffyuser}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tuffypass}
     ports:
-      - "3306:3306"
+      - "3310:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./backend/sql/0001_schema.sql:/docker-entrypoint-initdb.d/0001_schema.sql:ro
@@ -19,7 +19,11 @@ services:
       - ./backend/sql/0006_insert_missing_ge_courses.sql:/docker-entrypoint-initdb.d/0006_insert_missing_ge_courses.sql:ro
       - ./backend/sql/0007_insert_cs_major_ge_requirements_and_courses.sql:/docker-entrypoint-initdb.d/0007_insert_cs_major_ge_requirements_and_courses.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent",
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
