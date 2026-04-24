@@ -67,11 +67,8 @@ async function getPlanDetails(
 
 async function getDegreeRequirements(id: string): Promise<DegreeRequirement[]> {
   try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001";
-
     const response = await fetch(
-      `${baseUrl}/api/plans/${id}/degree-requirements`,
+      `http://localhost:3000/api/plans/${id}/degree-requirements`,
       {
         cache: "no-store",
       },
